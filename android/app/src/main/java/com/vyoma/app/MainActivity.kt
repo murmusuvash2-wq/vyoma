@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 
 internal val Mint = Color(0xFFBDF4D3)
 internal val Green = Color(0xFF247451)
@@ -100,13 +101,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun VyomaApp() {
+    val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var idea by remember { mutableStateOf("") }
     var draftPrompt by remember { mutableStateOf<String?>(null) }
     var selectedTemplate by remember { mutableStateOf<StarterTemplate?>(null) }
     var blueprintIdea by remember { mutableStateOf("") }
-    val localProjects = remember { mutableStateListOf<String>() }
-    val approvedBlueprints = remember { mutableStateListOf<ApprovedBlueprint>() }
+    val localProjects = remember(context) { mutableStateListOf<String>().apply { addAll(ProjectStore.loadLocalProjects(context)) } }
+    val approvedBlueprints = remember(context) { mutableStateListOf<ApprovedBlueprint>().apply { addAll(ProjectStore.loadBlueprints(context)) } }
 
     Scaffold(
         containerColor = Cream,
@@ -150,7 +152,10 @@ private fun VyomaApp() {
                 draftPrompt = draftPrompt,
                 onCreateFromDraft = {
                     val name = draftPrompt?.take(36)?.ifBlank { "New project" } ?: "New project"
-                    if (localProjects.none { it == name }) localProjects.add(name)
+                    if (localProjects.none { it == name }) {
+                        localProjects.add(name)
+                        ProjectStore.saveLocalProjects(context, localProjects)
+                    }
                     draftPrompt = null
                 },
                 onBackHome = { selectedTab = 0 }
@@ -161,6 +166,7 @@ private fun VyomaApp() {
                 onBack = { selectedTab = 0 },
                 onApproved = { blueprint ->
                     approvedBlueprints.add(blueprint)
+                    ProjectStore.saveBlueprints(context, approvedBlueprints)
                     blueprintIdea = ""
                     selectedTab = 1
                 }
