@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
@@ -36,10 +37,16 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
@@ -57,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 internal val Mint = Color(0xFFBDF4D3)
 internal val Green = Color(0xFF247451)
@@ -110,23 +118,71 @@ private fun VyomaApp() {
     val localProjects = remember(context) { mutableStateListOf<String>().apply { addAll(ProjectStore.loadLocalProjects(context)) } }
     val approvedBlueprints = remember(context) { mutableStateListOf<ApprovedBlueprint>().apply { addAll(ProjectStore.loadBlueprints(context)) } }
 
-    Scaffold(
-        containerColor = Cream,
-        bottomBar = {
-            NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
-                val labels = listOf("Home", "Projects", "Blueprint", "Preview", "Settings")
-                val icons = listOf(Icons.Default.Home, Icons.Default.FolderOpen, Icons.Default.AutoAwesome, Icons.Default.Visibility, Icons.Default.Settings)
-                labels.forEachIndexed { index, label ->
-                    NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = { Icon(icons[index], contentDescription = label) },
-                        label = { Text(label, fontSize = 11.sp) }
-                    )
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val screenTitle = when (selectedTab) {
+        0 -> "VYOMA"
+        1 -> "Projects"
+        2 -> "Blueprint review"
+        3 -> "Preview"
+        else -> "Settings"
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(drawerContainerColor = Color.White) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("VYOMA", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+                    Text("Ideas into apps", color = Muted, fontSize = 12.sp)
                 }
+                HorizontalDivider(color = Line)
+                NavigationDrawerItem(
+                    label = { Text("Home") },
+                    selected = selectedTab == 0,
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    onClick = { selectedTab = 0; scope.launch { drawerState.close() } },
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text("Projects") },
+                    selected = selectedTab == 1,
+                    icon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                    onClick = { selectedTab = 1; scope.launch { drawerState.close() } },
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text("Preview") },
+                    selected = selectedTab == 3,
+                    icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
+                    onClick = { selectedTab = 3; scope.launch { drawerState.close() } },
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text("Settings") },
+                    selected = selectedTab == 4,
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    onClick = { selectedTab = 4; scope.launch { drawerState.close() } },
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
             }
         }
-    ) { insets ->
+    ) {
+        Scaffold(
+            containerColor = Cream,
+            topBar = {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(Cream).height(58.dp).padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open navigation menu", tint = Navy)
+                    }
+                    Text(screenTitle, color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        ) { insets ->
         when (selectedTab) {
             0 -> HomeScreen(
                 modifier = Modifier.padding(insets),
@@ -174,6 +230,7 @@ private fun VyomaApp() {
             3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
             else -> SettingsScreen(Modifier.padding(insets))
         }
+        }
     }
 }
 
@@ -195,18 +252,7 @@ private fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(22.dp)
         ) {
             Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = Navy, modifier = Modifier.size(42.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Mint, modifier = Modifier.size(23.dp))
-                        }
-                    }
-                    Column {
-                        Text("VYOMA", color = Navy, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                        Text("Ideas into apps", color = Muted, fontSize = 12.sp)
-                    }
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Surface(color = Mint, shape = CircleShape) {
                     Text("BETA", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Navy, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
