@@ -2,46 +2,42 @@
 
 **Your Ideas. Your Apps.**
 
-Vyoma is a project-first app builder concept. The first milestone is a responsive web workspace for planning, designing, and managing app projects. Native Android generation and cloud builds are later milestones—not claimed as working yet.
+Vyoma is intended to be an **Android-native app builder**. The Vyoma mobile app is the builder; it helps users plan, design, generate, review, test, and build other apps. The target native app stack is Kotlin + Jetpack Compose + Material 3.
 
-## Current milestone: Foundation
+## Product direction (corrected)
 
-- Responsive dashboard UI
-- Project creation prompt (UI prototype)
-- Recent project cards and project-memory concept
-- Next.js + React + TypeScript
-- No API keys or secrets committed
+- **Vyoma itself:** Android app, designed for mobile-first use.
+- **Generated Android apps:** Kotlin + Jetpack Compose where native Android is selected.
+- **Live preview:** shown inside Vyoma's workspace; a preview is not proof that a generated app works on a real Android device.
+- **Builds:** run Gradle in a cloud/CI worker so users do not need to compile large projects on their phone. APK artifacts must be access-controlled.
+- **GitHub:** source-code history and reviewable changes.
+- **Figma:** UI/UX design only; implementation and source code stay in GitHub.
 
-## Stack
+## Current repository status
 
-- Next.js App Router
-- React
-- TypeScript
-- CSS (initial design implementation)
-- GitHub as source of truth
-- Figma for UI/UX design
-- Future evaluation: Supabase for project data, secure server-side AI orchestration, and GitHub Actions/cloud workers for builds
+The existing root-level Next.js dashboard is a **temporary UI prototype**, not the intended product platform. It is retained for reference while the Android-native direction is established; it must not be described as the final Vyoma app. The prototype's project creation is local UI state only.
 
-## Run locally
+Not implemented yet: a complete Android app, AI coding agent, persistent project memory, real GitHub authorization, isolated code execution, automated app testing, or cloud APK generation. Do not treat roadmap items as working features.
 
-Requires Node.js 20.9+.
+## Intended Android stack
 
-```bash
-npm install
-npm run dev
-```
-
-Open http://localhost:3000.
-
-## Important status notes
-
-This is an early UI foundation. Project creation, AI coding, persistent memory, GitHub integration, testing, and build pipelines are not functional yet. UI labels are prototypes, not claims that these systems already work.
+- Kotlin
+- Jetpack Compose
+- Material 3
+- Gradle / Android Gradle Plugin
+- Cloud build and test jobs (for example, GitHub Actions or an isolated worker)
+- Secure server-side orchestration for model/API access; no provider secrets in the Android client or repository
 
 ## Product principles
 
 1. Blueprint before code.
-2. Keep project decisions and approved designs separate from chat history.
-3. Propose scoped changes and show diffs before applying them.
-4. Treat tests as evidence; never report unrun tests as passed.
-5. Keep credentials server-side and out of the repository.
-6. Build web workspace first; keep native Android build pipeline as a separate milestone.
+2. Keep confirmed requirements and approved design separate from raw chat history.
+3. Show scoped changes, diffs, and a recovery path.
+4. Asking a question must not mutate project files.
+5. Treat tests as evidence tied to a commit and environment.
+6. Never expose API keys, OAuth tokens, signing keys, or service credentials in client code, APKs, public commits, or logs.
+7. Keep cloud builds separate from the phone UI; never claim an APK is production-ready just because compilation succeeded.
+
+## Development note
+
+The repository currently contains a web prototype and its CI checks. That CI validates the prototype only; it does **not** validate an Android APK. Android implementation and Android-specific CI must be added and verified separately.
