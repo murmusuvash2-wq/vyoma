@@ -21,6 +21,7 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] User can edit and explicitly approve a blueprint
 - [x] Persist approved blueprints and local demo projects across app restarts using app-private SharedPreferences JSON (prototype-scale local storage; not Room or cloud sync)
 - [ ] Loading, failure, retry, and empty states
+- [ ] Refine UI/UX using the documented open-source evaluation process; do not copy any reference app wholesale
 
 **Exit gate:** a user can create and approve a blueprint in the Android app without code being generated.
 
@@ -37,25 +38,36 @@ Status reflects repository evidence, not intended design. A screen or documentat
 **Exit gate:** project context survives reloads and can be reviewed/corrected by its owner.
 
 ## M3 — Design and controlled edits
-- [ ] Design tokens and reusable component inventory
-- [ ] Draft preview clearly separated from saved/approved source
+- [ ] Establish Vyoma-specific design tokens, spacing/typography scale, component inventory, and UI states
+- [ ] Hidden hamburger navigation drawer with polished open/close and selected states
+- [ ] Chat UI with streaming, tool-call/status cards, attachments where useful, and reliable keyboard/IME behavior
+- [ ] Blueprint review UI with clear approve/edit actions
+- [ ] Preview screen with explicit draft/live/build status and refresh/error/retry states
+- [ ] File tree, diff review, test/build logs, and activity history
 - [ ] Before/after view and file diff
 - [ ] Scope confirmation, approval, checkpoint, undo/rollback
 - [ ] Asking a question or reviewing code causes no mutation
+- [ ] Add accessibility checks, small-screen layout checks, and Compose UI tests
 
-**Exit gate:** an approved UI change does not silently modify unrelated screens.
+**Exit gate:** the core workspace is usable on a phone, states are clear, and an approved UI change does not silently modify unrelated screens.
 
-## M4 — Repository and coding loop
+## M4 — AI Chat, repository tools, and coding loop
+- [ ] Audit existing backend and open PRs before adding duplicate services or data models
+- [ ] Connect AI Chat to a secure server-side model adapter; keep provider keys out of the Android app
+- [ ] One orchestrator with explicit, auditable tools
+- [ ] Research and implement a supported GitHub/MCP connection; do not assume a desktop coding agent can be embedded as a mobile API
 - [ ] Secure GitHub connect/disconnect and least-privilege permissions
 - [ ] Create isolated branch/checkpoint per task
-- [ ] One orchestrator with explicit, auditable tools
 - [ ] Apply a small code change and present the diff
 - [ ] Commit only after applicable validation and approval policy
 - [ ] Track commit SHA for every result
 
 **Exit gate:** one small, reproducible code task can be completed with a reviewable diff and recovery path.
 
-## M5 — Test and review pipeline
+## M5 — Preview, test, and review pipeline
+- [ ] Implement a first-level draft preview renderer for supported previewable content
+- [ ] Clearly distinguish web/prototype preview from a compiled native Android app
+- [ ] Add supported project preview adapters incrementally; do not claim every generated app can run inside a WebView
 - [ ] Unit and type checks
 - [ ] Integration/API tests
 - [ ] Android UI/navigation/E2E tests for critical flows
@@ -63,7 +75,7 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [ ] Dependency/security scans and secret detection
 - [ ] Report pass/fail/skipped with logs, environment, timestamp, and commit SHA
 
-**Exit gate:** status reports never say “passed” for tests that did not run.
+**Exit gate:** preview type and verification evidence are visible, and status reports never say “passed” for tests that did not run.
 
 ## M6 — Cloud build and release
 - [ ] Isolated worker, quotas, cancellation, and artifact expiry
@@ -71,6 +83,7 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [ ] Signing-key handling outside source code; release signing requires explicit setup
 - [ ] Build failure diagnostics and reproducibility metadata
 - [ ] Emulator/device testing of critical flows
+- [ ] Optional on-device build only after the cloud path is reliable and the device constraints are evaluated
 
 **Exit gate:** a clean Android starter project builds in the cloud and the APK can be downloaded securely.
 
@@ -81,10 +94,22 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [ ] Real-device beta testing and feedback
 - [ ] Document supported project types and known limitations
 
-## Explicit non-goals for the first milestone
+**Exit gate:** Vyoma's own chat → blueprint → review → preview → cloud build flow is tested on a real phone before we prioritize using Vyoma to create other apps.
 
+## Open-source reuse policy
+- We will **not copy or fork a whole project by default**. Treat candidate repositories as references and component sources.
+- Reuse only the smallest useful, clearly identified components or patterns; adapt them to Vyoma's Kotlin + Jetpack Compose architecture and product design.
+- Before code or assets are reused, check the repository's current licence, file-level headers, third-party dependency licences, fonts/icons/images, and any additional asset terms.
+- Preserve required copyright/licence notices and provide attribution where the licence requires it. Keep a record of source URL, version/commit, licence, reused paths, modifications, and notices in the repository.
+- Prefer permissive licences such as Apache-2.0 or MIT, but still satisfy their conditions. Do not reuse code/assets when the licence is missing, unclear, incompatible, or the provenance cannot be established; ask for review instead.
+- A repository's top-level licence does not automatically cover every dependency, bundled asset, screenshot, font, or model.
+- Re-check licence and compatibility at the time of integration. Research shortlist is not approval to copy code.
+- See [UI/UX open-source research](UIUX_OPEN_SOURCE_RESEARCH.md) for candidate projects and intended use.
+
+## Explicit non-goals for the first milestone
 - Seven independent autonomous agents
 - Automatic production publishing without approval
 - Claiming production readiness based only on a successful compile
 - Putting provider credentials into Android client code or generated apps
 - Connecting a database before its schema and access policies are reviewed
+- Copying an entire third-party app into Vyoma as a shortcut
