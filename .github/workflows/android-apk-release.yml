@@ -78,14 +78,16 @@ jobs:
           mkdir -p release-output
           if [[ "$RELEASE_SIGNING_READY" == "true" ]]; then
             cp android/app/build/outputs/apk/release/app-release.apk "release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
-            echo "apk=release-output/Vyoma-${{ steps.version.outputs.name }}.apk" >> "$GITHUB_OUTPUT"
+            APK_PATH="release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
+            echo "apk=$APK_PATH" >> "$GITHUB_OUTPUT"
             echo "signing=Stable release signing configured." >> "$GITHUB_OUTPUT"
           else
             cp android/app/build/outputs/apk/debug/app-debug.apk "release-output/Vyoma-${{ steps.version.outputs.name }}-DEBUG.apk"
-            echo "apk=release-output/Vyoma-${{ steps.version.outputs.name }}-DEBUG.apk" >> "$GITHUB_OUTPUT"
+            APK_PATH="release-output/Vyoma-${{ steps.version.outputs.name }}-DEBUG.apk"
+            echo "apk=$APK_PATH" >> "$GITHUB_OUTPUT"
             echo "signing=WARNING: debug-signed test APK. Do not use this build for upgrades across different CI runs; configure the stable signing secrets first." >> "$GITHUB_OUTPUT"
           fi
-          sha256sum "${{ steps.package.outputs.apk }}" > release-output/SHA256SUMS.txt
+          sha256sum "$APK_PATH" > release-output/SHA256SUMS.txt
 
       - name: Upload APK artifact for manual runs
         if: github.event_name == 'workflow_dispatch'
