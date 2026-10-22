@@ -161,7 +161,6 @@ private fun VyomaApp() {
                 onBack = { selectedTab = 0 },
                 onApproved = { blueprint ->
                     approvedBlueprints.add(blueprint)
-                    localProjects.add(blueprint.name)
                     blueprintIdea = ""
                     selectedTab = 1
                 }
