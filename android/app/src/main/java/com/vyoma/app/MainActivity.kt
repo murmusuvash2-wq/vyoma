@@ -104,14 +104,16 @@ private fun VyomaApp() {
     var idea by remember { mutableStateOf("") }
     var draftPrompt by remember { mutableStateOf<String?>(null) }
     var selectedTemplate by remember { mutableStateOf<StarterTemplate?>(null) }
+    var blueprintIdea by remember { mutableStateOf("") }
     val localProjects = remember { mutableStateListOf<String>() }
+    val approvedBlueprints = remember { mutableStateListOf<ApprovedBlueprint>() }
 
     Scaffold(
         containerColor = Cream,
         bottomBar = {
             NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
-                val labels = listOf("Home", "Projects", "Preview", "Settings")
-                val icons = listOf(Icons.Default.Home, Icons.Default.FolderOpen, Icons.Default.Visibility, Icons.Default.Settings)
+                val labels = listOf("Home", "Projects", "Blueprint", "Preview", "Settings")
+                val icons = listOf(Icons.Default.Home, Icons.Default.FolderOpen, Icons.Default.AutoAwesome, Icons.Default.Visibility, Icons.Default.Settings)
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = selectedTab == index,
@@ -130,21 +132,21 @@ private fun VyomaApp() {
                 onIdeaChange = { idea = it },
                 onStart = {
                     if (idea.isNotBlank()) {
-                        draftPrompt = idea.trim()
-                        selectedTab = 1
+                        blueprintIdea = idea.trim()
+                        selectedTab = 2
                     }
                 },
-                onTemplatePreview = { selectedTemplate = it; selectedTab = 2 },
+                onTemplatePreview = { selectedTemplate = it; selectedTab = 3 },
                 onUseTemplate = {
-                    localProjects.add(it.title)
-                    draftPrompt = it.prompt
-                    selectedTab = 1
+                    blueprintIdea = it.prompt
+                    selectedTab = 2
                 },
                 onSeeProjects = { selectedTab = 1 }
             )
             1 -> ProjectsScreen(
                 modifier = Modifier.padding(insets),
                 projects = localProjects,
+                approvedBlueprints = approvedBlueprints,
                 draftPrompt = draftPrompt,
                 onCreateFromDraft = {
                     val name = draftPrompt?.take(36)?.ifBlank { "New project" } ?: "New project"
@@ -153,7 +155,18 @@ private fun VyomaApp() {
                 },
                 onBackHome = { selectedTab = 0 }
             )
-            2 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
+            2 -> BlueprintScreen(
+                modifier = Modifier.padding(insets),
+                initialIdea = blueprintIdea,
+                onBack = { selectedTab = 0 },
+                onApproved = { blueprint ->
+                    approvedBlueprints.add(blueprint)
+                    localProjects.add(blueprint.name)
+                    blueprintIdea = ""
+                    selectedTab = 1
+                }
+            )
+            3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
             else -> SettingsScreen(Modifier.padding(insets))
         }
     }
@@ -328,7 +341,7 @@ private fun TemplateCard(item: StarterTemplate, onPreview: () -> Unit, onUse: ()
 }
 
 @Composable
-private fun ProjectsScreen(modifier: Modifier, projects: List<String>, draftPrompt: String?, onCreateFromDraft: () -> Unit, onBackHome: () -> Unit) {
+private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedBlueprints: List<ApprovedBlueprint>, draftPrompt: String?, onCreateFromDraft: () -> Unit, onBackHome: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Projects", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
         Text("Your app ideas and workspaces", color = Muted, fontSize = 14.sp)
@@ -344,7 +357,16 @@ private fun ProjectsScreen(modifier: Modifier, projects: List<String>, draftProm
                 }
             }
         }
-        if (projects.isEmpty()) {
+        approvedBlueprints.forEach { blueprint ->
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+                Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(blueprint.name, color = Navy, fontWeight = FontWeight.Bold)
+                    Text("Blueprint approved · Android · local prototype", color = Green, fontSize = 11.sp)
+                    Text(blueprint.goal, color = Muted, fontSize = 12.sp)
+                }
+            }
+        }
+        if (projects.isEmpty() && approvedBlueprints.isEmpty()) {
             Surface(color = Color.White, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Green, modifier = Modifier.size(36.dp))
