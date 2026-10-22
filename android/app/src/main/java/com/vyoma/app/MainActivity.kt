@@ -119,7 +119,10 @@ private fun VyomaApp() {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        onClick = {
+                            if (index != 2) editingBlueprintIndex = -1
+                            selectedTab = index
+                        },
                         icon = { Icon(icons[index], contentDescription = label) },
                         label = { Text(label, fontSize = 11.sp) }
                     )
@@ -160,7 +163,11 @@ private fun VyomaApp() {
                 modifier = Modifier.padding(insets),
                 initialIdea = blueprintIdea,
                 existingBlueprint = approvedBlueprints.getOrNull(editingBlueprintIndex),
-                onBack = { editingBlueprintIndex = -1; selectedTab = 0 },
+                onBack = {
+                    val returnToProjects = editingBlueprintIndex >= 0
+                    editingBlueprintIndex = -1
+                    selectedTab = if (returnToProjects) 1 else 0
+                },
                 onApproved = { blueprint ->
                     if (editingBlueprintIndex in approvedBlueprints.indices) {
                         approvedBlueprints[editingBlueprintIndex] = blueprint
@@ -358,6 +365,7 @@ private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedB
                     Text(blueprint.name, color = Navy, fontWeight = FontWeight.Bold)
                     Text("Blueprint approved · Android · local prototype", color = Green, fontSize = 11.sp)
                     Text(blueprint.goal, color = Muted, fontSize = 12.sp)
+                    Text("Tap to open and edit", color = Muted, fontSize = 11.sp)
                 }
             }
         }
