@@ -12,8 +12,41 @@ android {
         applicationId = "com.vyoma.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = providers.gradleProperty("vyomaVersionCode").orElse("1").get().toInt()
+        versionName = providers.gradleProperty("vyomaVersionName").orElse("0.1.0").get()
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val keyAliasValue = System.getenv("ANDROID_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
+
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+            }
+            if (!keystorePassword.isNullOrBlank()) storePassword = keystorePassword
+            if (!keyAliasValue.isNullOrBlank()) keyAlias = keyAliasValue
+            if (!keyPasswordValue.isNullOrBlank()) keyPassword = keyPasswordValue
+        }
+    }
+
+    buildTypes {
+        release {
+            // A stable upload key should be configured in GitHub Actions secrets for updates.
+            // Until then, use the debug key for installable test builds only.
+            signingConfig = if (
+                !System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank() &&
+                !System.getenv("ANDROID_KEYSTORE_PASSWORD").isNullOrBlank() &&
+                !System.getenv("ANDROID_KEY_ALIAS").isNullOrBlank() &&
+                !System.getenv("ANDROID_KEY_PASSWORD").isNullOrBlank()
+            ) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
     }
 
     buildFeatures {
