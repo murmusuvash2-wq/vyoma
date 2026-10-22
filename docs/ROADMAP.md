@@ -54,6 +54,18 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** one small, reproducible code task can be completed with a reviewable diff and recovery path.
 
+## M4.1 — Hybrid AI agent and MCP foundation
+- [x] Document the recommended single coding agent + planner/reviewer modules architecture
+- [x] Define security boundaries, approval gates, and example typed tool contracts
+- [ ] Choose backend runtime/hosting and authentication strategy
+- [ ] Implement authenticated backend API and server-side provider adapter
+- [ ] Implement project-scoped tool registry and audit records
+- [ ] Connect GitHub integration with least-privilege authorization
+- [ ] Implement restricted task workspace filesystem tools
+- [ ] Implement isolated Android build-job contract and worker
+
+**Exit gate:** one approved task can propose a scoped patch, show a diff, run checks in isolation, and report evidence tied to a commit SHA. The architecture document is planning only; no backend/MCP/build-worker feature is marked implemented.
+
 ## M5 — Test and review pipeline
 - [ ] Unit and type checks
 - [ ] Integration/API tests
