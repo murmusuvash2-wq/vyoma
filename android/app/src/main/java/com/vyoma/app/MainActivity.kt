@@ -43,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.DrawerValue
@@ -131,40 +132,138 @@ private fun VyomaApp() {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = Color.White) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("VYOMA", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                    Text("Ideas into apps", color = Muted, fontSize = 12.sp)
+            ModalDrawerSheet(
+                drawerContainerColor = Color.White,
+                drawerContentColor = Navy
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Surface(
+                        color = Navy,
+                        shape = RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp)
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 28.dp, bottom = 22.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(color = Mint, shape = RoundedCornerShape(15.dp), modifier = Modifier.size(48.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Navy, modifier = Modifier.size(25.dp))
+                                    }
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("VYOMA", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+                                    Text("Your AI app studio", color = Color(0xFFD5E3E5), fontSize = 12.sp)
+                                }
+                                Surface(color = Color(0xFF294653), shape = RoundedCornerShape(9.dp)) {
+                                    Text("BETA", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
+                                }
+                            }
+                            Text(
+                                "Turn your ideas into a plan, one step at a time.",
+                                color = Color(0xFFE5EFEC),
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp
+                            )
+                        }
+                    }
+
+                    Text(
+                        "WORKSPACE",
+                        color = Muted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        modifier = Modifier.padding(start = 22.dp, top = 22.dp, bottom = 8.dp)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Home", fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal) },
+                        selected = selectedTab == 0,
+                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        onClick = { selectedTab = 0; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Mint,
+                            selectedIconColor = Green,
+                            selectedTextColor = Navy,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Navy
+                        )
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Projects", fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal) },
+                        selected = selectedTab == 1,
+                        icon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                        onClick = { selectedTab = 1; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Mint,
+                            selectedIconColor = Green,
+                            selectedTextColor = Navy,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Navy
+                        )
+                    )
+
+                    Text(
+                        "TOOLS",
+                        color = Muted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        modifier = Modifier.padding(start = 22.dp, top = 18.dp, bottom = 8.dp)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Preview", fontWeight = if (selectedTab == 3) FontWeight.SemiBold else FontWeight.Normal) },
+                        selected = selectedTab == 3,
+                        icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
+                        onClick = { selectedTab = 3; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Mint,
+                            selectedIconColor = Green,
+                            selectedTextColor = Navy,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Navy
+                        )
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Settings", fontWeight = if (selectedTab == 4) FontWeight.SemiBold else FontWeight.Normal) },
+                        selected = selectedTab == 4,
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        onClick = { selectedTab = 4; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Mint,
+                            selectedIconColor = Green,
+                            selectedTextColor = Navy,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Navy
+                        )
+                    )
+
+                    Spacer(Modifier.weight(1f))
+                    HorizontalDivider(color = Line)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(11.dp)
+                    ) {
+                        Surface(color = Color(0xFFE7F6EC), shape = CircleShape, modifier = Modifier.size(38.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("V", color = Green, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Vyoma workspace", color = Navy, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Early access · Prototype", color = Muted, fontSize = 10.sp)
+                        }
+                    }
                 }
-                HorizontalDivider(color = Line)
-                NavigationDrawerItem(
-                    label = { Text("Home") },
-                    selected = selectedTab == 0,
-                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                    onClick = { selectedTab = 0; scope.launch { drawerState.close() } },
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
-                NavigationDrawerItem(
-                    label = { Text("Projects") },
-                    selected = selectedTab == 1,
-                    icon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
-                    onClick = { selectedTab = 1; scope.launch { drawerState.close() } },
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
-                NavigationDrawerItem(
-                    label = { Text("Preview") },
-                    selected = selectedTab == 3,
-                    icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
-                    onClick = { selectedTab = 3; scope.launch { drawerState.close() } },
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
-                NavigationDrawerItem(
-                    label = { Text("Settings") },
-                    selected = selectedTab == 4,
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    onClick = { selectedTab = 4; scope.launch { drawerState.close() } },
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
             }
         }
     ) {
