@@ -257,6 +257,7 @@ private fun VyomaApp() {
             3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
             5 -> selectedProjectId?.let { id ->
                 ProjectWorkspaceScreen(
+                    modifier = Modifier.padding(insets),
                     repository = repository,
                     projectId = id,
                     onBack = { selectedTab = 1 }
