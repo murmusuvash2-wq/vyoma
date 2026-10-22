@@ -104,7 +104,7 @@ private fun VyomaApp() {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var idea by remember { mutableStateOf("") }
-    var draftPrompt by remember { mutableStateOf<String?>(null) }
+    var editingBlueprintIndex by remember { mutableIntStateOf(-1) }
     var selectedTemplate by remember { mutableStateOf<StarterTemplate?>(null) }
     var blueprintIdea by remember { mutableStateOf("") }
     val localProjects = remember(context) { mutableStateListOf<String>().apply { addAll(ProjectStore.loadLocalProjects(context)) } }
@@ -149,24 +149,26 @@ private fun VyomaApp() {
                 modifier = Modifier.padding(insets),
                 projects = localProjects,
                 approvedBlueprints = approvedBlueprints,
-                draftPrompt = draftPrompt,
-                onCreateFromDraft = {
-                    val name = draftPrompt?.take(36)?.ifBlank { "New project" } ?: "New project"
-                    if (localProjects.none { it == name }) {
-                        localProjects.add(name)
-                        ProjectStore.saveLocalProjects(context, localProjects)
-                    }
-                    draftPrompt = null
+                onOpenBlueprint = { index ->
+                    editingBlueprintIndex = index
+                    blueprintIdea = approvedBlueprints[index].goal
+                    selectedTab = 2
                 },
                 onBackHome = { selectedTab = 0 }
             )
             2 -> BlueprintScreen(
                 modifier = Modifier.padding(insets),
                 initialIdea = blueprintIdea,
-                onBack = { selectedTab = 0 },
+                existingBlueprint = approvedBlueprints.getOrNull(editingBlueprintIndex),
+                onBack = { editingBlueprintIndex = -1; selectedTab = 0 },
                 onApproved = { blueprint ->
-                    approvedBlueprints.add(blueprint)
+                    if (editingBlueprintIndex in approvedBlueprints.indices) {
+                        approvedBlueprints[editingBlueprintIndex] = blueprint
+                    } else {
+                        approvedBlueprints.add(blueprint)
+                    }
                     ProjectStore.saveBlueprints(context, approvedBlueprints)
+                    editingBlueprintIndex = -1
                     blueprintIdea = ""
                     selectedTab = 1
                 }
@@ -346,24 +348,12 @@ private fun TemplateCard(item: StarterTemplate, onPreview: () -> Unit, onUse: ()
 }
 
 @Composable
-private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedBlueprints: List<ApprovedBlueprint>, draftPrompt: String?, onCreateFromDraft: () -> Unit, onBackHome: () -> Unit) {
+private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedBlueprints: List<ApprovedBlueprint>, onOpenBlueprint: (Int) -> Unit, onBackHome: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Projects", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
         Text("Your app ideas and workspaces", color = Muted, fontSize = 14.sp)
-        if (draftPrompt != null) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Idea ready to plan", color = Green, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(draftPrompt, color = Navy, fontSize = 15.sp)
-                    Text("Next step: review a blueprint. AI project creation is not connected in this prototype.", color = Muted, fontSize = 12.sp)
-                    Button(onClick = onCreateFromDraft, colors = ButtonDefaults.buttonColors(containerColor = Navy), shape = RoundedCornerShape(13.dp)) {
-                        Text("Save local draft")
-                    }
-                }
-            }
-        }
-        approvedBlueprints.forEach { blueprint ->
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+        approvedBlueprints.forEachIndexed { index, blueprint ->
+            Card(onClick = { onOpenBlueprint(index) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(blueprint.name, color = Navy, fontWeight = FontWeight.Bold)
                     Text("Blueprint approved · Android · local prototype", color = Green, fontSize = 11.sp)
