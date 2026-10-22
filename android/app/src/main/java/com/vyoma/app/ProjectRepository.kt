@@ -211,4 +211,41 @@ class ProjectRepository(context: Context) {
         dao.createProjectWithBlueprint(project, blueprint)
         return projectId
     }
+
+    suspend fun saveBlueprintVersion(
+        project: ProjectWithBlueprints,
+        goal: String,
+        screens: String,
+        data: String,
+        integrations: String,
+        permissions: String,
+        edgeCases: String,
+        acceptanceTests: String
+    ) {
+        require(goal.isNotBlank()) { "Project goal cannot be blank." }
+        val current = project.blueprints.maxByOrNull { it.version }
+            ?: error("This project has no blueprint to update.")
+        val now = System.currentTimeMillis()
+        val next = current.copy(
+            blueprintId = UUID.randomUUID().toString(),
+            version = current.version + 1,
+            goal = goal.trim(),
+            screens = screens.trim(),
+            data = data.trim(),
+            integrations = integrations.trim(),
+            permissions = permissions.trim(),
+            edgeCases = edgeCases.trim(),
+            acceptanceTests = acceptanceTests.trim(),
+            approvalStatus = "draft",
+            createdAtEpochMs = now,
+            updatedAtEpochMs = now
+        )
+        dao.saveBlueprintForProject(
+            projectId = project.project.projectId,
+            blueprint = next,
+            projectName = project.project.name,
+            projectDescription = goal.trim(),
+            status = "draft"
+        )
+    }
 }

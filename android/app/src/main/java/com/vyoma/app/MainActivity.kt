@@ -51,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -110,6 +111,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun VyomaApp() {
     val context = LocalContext.current
+    val repository = remember(context) { ProjectRepository(context) }
+    val roomProjects by repository.observeProjects().collectAsState(initial = emptyList())
+    var selectedProjectId by remember { mutableStateOf<String?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var idea by remember { mutableStateOf("") }
     var draftPrompt by remember { mutableStateOf<String?>(null) }
@@ -125,7 +129,9 @@ private fun VyomaApp() {
         1 -> "Projects"
         2 -> "Blueprint review"
         3 -> "Preview"
-        else -> "Settings"
+        4 -> "Settings"
+        5 -> "Project workspace"
+        else -> "VYOMA"
     }
 
     ModalNavigationDrawer(
@@ -151,6 +157,15 @@ private fun VyomaApp() {
                     onClick = { selectedTab = 1; scope.launch { drawerState.close() } },
                     modifier = Modifier.padding(horizontal = 10.dp)
                 )
+                if (selectedProjectId != null) {
+                    NavigationDrawerItem(
+                        label = { Text("Workspace") },
+                        selected = selectedTab == 5,
+                        icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                        onClick = { selectedTab = 5; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                }
                 NavigationDrawerItem(
                     label = { Text("Preview") },
                     selected = selectedTab == 3,
@@ -205,6 +220,8 @@ private fun VyomaApp() {
                 modifier = Modifier.padding(insets),
                 projects = localProjects,
                 approvedBlueprints = approvedBlueprints,
+                roomProjects = roomProjects,
+                onOpenRoomProject = { id -> selectedProjectId = id; selectedTab = 5 },
                 draftPrompt = draftPrompt,
                 onCreateFromDraft = {
                     val name = draftPrompt?.take(36)?.ifBlank { "New project" } ?: "New project"
@@ -223,11 +240,37 @@ private fun VyomaApp() {
                 onApproved = { blueprint ->
                     approvedBlueprints.add(blueprint)
                     ProjectStore.saveBlueprints(context, approvedBlueprints)
+                    scope.launch {
+                        runCatching {
+                            repository.createProject(name = blueprint.name, goal = blueprint.goal)
+                        }.onSuccess { id ->
+                            selectedProjectId = id
+                            selectedTab = 5
+                        }.onFailure {
+                            // Preserve the existing local fallback if database creation fails.
+                            selectedTab = 1
+                        }
+                    }
                     blueprintIdea = ""
-                    selectedTab = 1
                 }
             )
             3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
+            5 -> selectedProjectId?.let { id ->
+                ProjectWorkspaceScreen(
+                    modifier = Modifier.padding(insets),
+                    repository = repository,
+                    projectId = id,
+                    onBack = { selectedTab = 1 }
+                )
+            } ?: HomeScreen(
+                modifier = Modifier.padding(insets),
+                idea = idea,
+                onIdeaChange = { idea = it },
+                onStart = { if (idea.isNotBlank()) { blueprintIdea = idea.trim(); selectedTab = 2 } },
+                onTemplatePreview = { selectedTemplate = it; selectedTab = 3 },
+                onUseTemplate = { blueprintIdea = it.prompt; selectedTab = 2 },
+                onSeeProjects = { selectedTab = 1 }
+            )
             else -> SettingsScreen(Modifier.padding(insets))
         }
         }
@@ -392,7 +435,16 @@ private fun TemplateCard(item: StarterTemplate, onPreview: () -> Unit, onUse: ()
 }
 
 @Composable
-private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedBlueprints: List<ApprovedBlueprint>, draftPrompt: String?, onCreateFromDraft: () -> Unit, onBackHome: () -> Unit) {
+private fun ProjectsScreen(
+    modifier: Modifier,
+    projects: List<String>,
+    approvedBlueprints: List<ApprovedBlueprint>,
+    roomProjects: List<ProjectWithBlueprints>,
+    onOpenRoomProject: (String) -> Unit,
+    draftPrompt: String?,
+    onCreateFromDraft: () -> Unit,
+    onBackHome: () -> Unit
+) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Projects", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
         Text("Your app ideas and workspaces", color = Muted, fontSize = 14.sp)
@@ -408,6 +460,21 @@ private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedB
                 }
             }
         }
+        roomProjects.forEach { item ->
+            Card(
+                onClick = { onOpenRoomProject(item.project.projectId) },
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(18.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(item.project.name, color = Navy, fontWeight = FontWeight.Bold)
+                    Text("Saved project · ${item.blueprints.size} blueprint version(s)", color = Green, fontSize = 11.sp)
+                    Text(item.project.description, color = Muted, fontSize = 12.sp)
+                    Text("Open workspace →", color = Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
         approvedBlueprints.forEach { blueprint ->
             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -417,7 +484,7 @@ private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedB
                 }
             }
         }
-        if (projects.isEmpty() && approvedBlueprints.isEmpty()) {
+        if (projects.isEmpty() && approvedBlueprints.isEmpty() && roomProjects.isEmpty()) {
             Surface(color = Color.White, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Green, modifier = Modifier.size(36.dp))
