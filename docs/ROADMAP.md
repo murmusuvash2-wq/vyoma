@@ -17,8 +17,9 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] Compose app shell and mobile navigation (Home, Projects, Preview, Settings tabs)
 - [x] Home dashboard, projects list, and local demo draft flow
 - [x] Initial editable blueprint fields: goal, screens, data, integrations, permissions, edge cases, acceptance checks (local prototype model)
-- [x] Blueprint draft/review/approved UI states (local in-memory prototype only)
-- [x] User can edit and explicitly approve a blueprint (approval is not persisted across app restarts yet)
+- [x] Blueprint draft/review/approved UI states
+- [x] User can edit and explicitly approve a blueprint
+- [x] Persist approved blueprints and local demo projects across app restarts using app-private SharedPreferences JSON (prototype-scale local storage; not Room or cloud sync)
 - [ ] Loading, failure, retry, and empty states
 
 **Exit gate:** a user can create and approve a blueprint in the Android app without code being generated.
@@ -28,7 +29,8 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [ ] Define versioned memory records and provenance
 - [ ] Separate requirements, decisions, rejected alternatives, design tokens, task state, code summaries, and verification history
 - [ ] Add conflict handling and user correction
-- [ ] Add authentication/authorization and persistence after schema review
+- [ ] Migrate local prototype storage to Room with schema/version migration tests
+- [ ] Add authentication/authorization and remote persistence only after schema and access-policy review
 - [ ] Add export/delete controls for project data
 
 **Exit gate:** project context survives reloads and can be reviewed/corrected by its owner.
