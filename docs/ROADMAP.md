@@ -57,8 +57,10 @@ Status reflects repository evidence, not intended design. A screen or documentat
 ## M4.1 — Hybrid AI agent and MCP foundation
 - [x] Document the recommended single coding agent + planner/reviewer modules architecture
 - [x] Define security boundaries, approval gates, and example typed tool contracts
-- [ ] Choose backend runtime/hosting and authentication strategy
-- [ ] Implement authenticated backend API and server-side provider adapter
+- [x] Choose initial backend runtime: FastAPI/Python prototype; hosting/authentication decisions remain open
+- [x] Add a health-only FastAPI skeleton and container definition (no credentials or protected project routes)
+- [x] Document user-owned credential classes and safe handling boundaries
+- [ ] Implement authenticated backend API and provider adapter
 - [ ] Implement project-scoped tool registry and audit records
 - [ ] Connect GitHub integration with least-privilege authorization
 - [ ] Implement restricted task workspace filesystem tools
