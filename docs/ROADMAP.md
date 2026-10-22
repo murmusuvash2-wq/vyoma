@@ -6,16 +6,16 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] Public repository and initial dashboard UI prototype
 - [x] Product principles documented
 - [x] Root-level web prototype explicitly labelled temporary, not the final product
-- [ ] Create the Android-native project foundation (Kotlin + Jetpack Compose + Material 3)
-- [ ] Add Android-specific CI: Gradle build and available tests
+- [x] Create the Android-native project foundation (Kotlin + Jetpack Compose + Material 3)
+- [x] Add Android-specific CI: Gradle debug APK build
 - [ ] Resolve and pin prototype dependencies with a committed lockfile
-- [ ] Review Android navigation, accessibility, and empty/error states
+- [ ] Review Android navigation, accessibility, and empty/error states; add tests
 
 **Exit gate:** Android project structure is in GitHub and Android CI validates it. Existing Next.js CI only validates the temporary prototype.
 
 ## M1 — Native mobile shell and blueprint
-- [ ] Compose app shell and mobile navigation
-- [ ] Home dashboard, projects list, and project creation flow
+- [x] Compose app shell and mobile navigation (Home, Projects, Preview, Settings tabs)
+- [x] Home dashboard, projects list, and local demo draft flow
 - [ ] Blueprint data types: platform, goals, screens, flows, data, integrations, permissions, edge cases, acceptance tests
 - [ ] Blueprint draft/review/approved states
 - [ ] User can edit and explicitly approve a blueprint
