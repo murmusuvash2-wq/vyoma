@@ -60,7 +60,7 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] Choose initial backend runtime: FastAPI/Python prototype; hosting/authentication decisions remain open
 - [x] Add a health-only FastAPI skeleton and container definition (no credentials or protected project routes)
 - [x] Document user-owned credential classes and safe handling boundaries
-- [ ] Implement authenticated backend API and provider adapter
+- [ ] Implement authenticated backend API and provider adapter\n- [x] Add initial request-scoped OpenAI BYOK planning endpoint (prototype only)
 - [ ] Implement project-scoped tool registry and audit records
 - [ ] Connect GitHub integration with least-privilege authorization
 - [ ] Implement restricted task workspace filesystem tools
