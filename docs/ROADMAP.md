@@ -29,7 +29,8 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [ ] Define versioned memory records and provenance
 - [ ] Separate requirements, decisions, rejected alternatives, design tokens, task state, code summaries, and verification history
 - [ ] Add conflict handling and user correction
-- [ ] Migrate local prototype storage to Room with schema/version migration tests
+- [x] Add Room project/blueprint entities, projectId foreign-key relationship, DAO, and repository foundation (UI wiring and legacy SharedPreferences migration still pending)
+- [ ] Migrate existing local prototype data into Room with schema/version migration tests
 - [ ] Add authentication/authorization and remote persistence only after schema and access-policy review
 - [ ] Add export/delete controls for project data
 
