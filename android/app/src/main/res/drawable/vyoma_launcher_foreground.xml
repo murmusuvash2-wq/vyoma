@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A clean, custom V mark with a small spark to signal AI-assisted building. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#BDF4D3"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M27,34 L44,72 L54,49 L64,72 L81,34" />
+    <path
+        android:fillColor="#BDF4D3"
+        android:pathData="M78,19 L81,27 L89,30 L81,33 L78,41 L75,33 L67,30 L75,27 Z" />
+</vector>
