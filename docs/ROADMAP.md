@@ -16,9 +16,9 @@ Status reflects repository evidence, not intended design. A screen or documentat
 ## M1 — Native mobile shell and blueprint
 - [x] Compose app shell and mobile navigation (Home, Projects, Preview, Settings tabs)
 - [x] Home dashboard, projects list, and local demo draft flow
-- [ ] Blueprint data types: platform, goals, screens, flows, data, integrations, permissions, edge cases, acceptance tests
-- [ ] Blueprint draft/review/approved states
-- [ ] User can edit and explicitly approve a blueprint
+- [x] Initial editable blueprint fields: goal, screens, data, integrations, permissions, edge cases, acceptance checks (local prototype model)
+- [x] Blueprint draft/review/approved UI states (local in-memory prototype only)
+- [x] User can edit and explicitly approve a blueprint (approval is not persisted across app restarts yet)
 - [ ] Loading, failure, retry, and empty states
 
 **Exit gate:** a user can create and approve a blueprint in the Android app without code being generated.
