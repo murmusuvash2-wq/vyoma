@@ -49,3 +49,12 @@ No source files were deleted. Static tree inspection alone cannot prove that the
 - Android CI after dependency cleanup passed on commit `2be57e37c8c9c11a6a75f1205a26be83b46b05f5`: https://github.com/murmusuvash2-wq/vyoma/actions/runs/39755494824
 - Android CI for the final screen-extraction commit `c53f2ba8bba9caf41ccf7e0759c79e803886c099` was running at audit update time: https://github.com/murmusuvash2-wq/vyoma/actions/runs/39755809138
 - First-launch behavior is code-reviewed but not yet instrumented with automated UI tests or manually verified on a physical device. Do not describe that UI flow as device-tested.
+
+
+## Blueprint flow implementation — 2026-10-22
+- Added `BlueprintScreen.kt` with editable project name, goal, screen/navigation list, data, integrations, permissions, edge cases, and acceptance checks.
+- Connected Home's “Plan idea” and starter-template “Use” actions to the Blueprint tab.
+- Added explicit “Approve blueprint” action. Approved blueprints appear in Projects for the current app session.
+- This is a local UI/model flow only: no AI generation, Room/database persistence, backend sync, or code generation. Approved state is lost on process restart.
+- Android CI for the previous screen-extraction refactor passed: https://github.com/murmusuvash2-wq/vyoma/actions/runs/39755809138
+- CI for the blueprint implementation commit(s) is running; final pass/fail must be confirmed from Actions before calling this implementation build-verified.
