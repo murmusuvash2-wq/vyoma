@@ -58,3 +58,10 @@ No source files were deleted. Static tree inspection alone cannot prove that the
 - This is a local UI/model flow only: no AI generation, Room/database persistence, backend sync, or code generation. Approved state is lost on process restart.
 - Android CI for the previous screen-extraction refactor passed: https://github.com/murmusuvash2-wq/vyoma/actions/runs/39755809138
 - CI for the blueprint implementation commit(s) is running; final pass/fail must be confirmed from Actions before calling this implementation build-verified.
+
+
+## Local project persistence follow-up — 2026-10-22
+- Added `ProjectStore.kt` using app-private SharedPreferences and JSON serialization for approved blueprints and local demo project names.
+- Connected app startup to restore saved items and approval/create actions to persist changes.
+- This is local-device persistence for the prototype, not Room, encrypted cross-device sync, authentication, or cloud backup. Corrupt stored JSON falls back to an empty list; recovery UX and migration tests remain future work.
+- Android CI must be checked for the persistence commits before marking this implementation build-verified.
