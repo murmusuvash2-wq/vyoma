@@ -106,8 +106,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/feature/approved-homepage-layout" ]]; then
             cp android/app/build/outputs/apk/release/app-release.apk release-output/Vyoma-latest-test.apk
             APK_SHA256="$(sha256sum release-output/Vyoma-latest-test.apk | awk '{print $1}')"
-            printf '%s  %s\\n' "$APK_SHA256" "Vyoma-latest-test.apk" > release-output/SHA256SUMS-latest-test.txt
-            printf '{\\n  "versionName": "%s",\\n  "versionCode": %s,\\n  "commit": "%s",\\n  "apkUrl": "https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/Vyoma-latest-test.apk",\\n  "sha256": "%s"\\n}\\n' \
+            printf '%s  %s\n' "$APK_SHA256" "Vyoma-latest-test.apk" > release-output/SHA256SUMS-latest-test.txt
+            printf '{\n  "versionName": "%s",\n  "versionCode": %s,\n  "commit": "%s",\n  "apkUrl": "https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/Vyoma-latest-test.apk",\n  "sha256": "%s"\n}\n' \
               "${{ steps.version.outputs.name }}" "${{ steps.version.outputs.code }}" "$GITHUB_SHA" "$APK_SHA256" > release-output/latest-test.json
           fi
 
