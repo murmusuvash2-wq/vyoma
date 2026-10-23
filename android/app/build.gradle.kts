@@ -24,15 +24,19 @@ android {
             val keyAliasValue = System.getenv("ANDROID_KEY_ALIAS")
             val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
 
-            require(!keystorePath.isNullOrBlank()) { "ANDROID_KEYSTORE_PATH is required for release signing." }
-            require(!keystorePassword.isNullOrBlank()) { "ANDROID_KEYSTORE_PASSWORD is required for release signing." }
-            require(!keyAliasValue.isNullOrBlank()) { "ANDROID_KEY_ALIAS is required for release signing." }
-            require(!keyPasswordValue.isNullOrBlank()) { "ANDROID_KEY_PASSWORD is required for release signing." }
-
-            storeFile = file(keystorePath)
-            storePassword = keystorePassword
-            keyAlias = keyAliasValue
-            keyPassword = keyPasswordValue
+            // Leave this config unpopulated for debug-only CI builds. The release workflow
+            // validates all secrets before invoking assembleRelease.
+            if (
+                !keystorePath.isNullOrBlank() &&
+                !keystorePassword.isNullOrBlank() &&
+                !keyAliasValue.isNullOrBlank() &&
+                !keyPasswordValue.isNullOrBlank()
+            ) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
         }
     }
 
