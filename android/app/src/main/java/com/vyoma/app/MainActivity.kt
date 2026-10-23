@@ -1,6 +1,11 @@
 package com.vyoma.app
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -92,8 +97,18 @@ private val templates = listOf(
 )
 
 class MainActivity : ComponentActivity() {
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UpdateCheckScheduler.schedule(this)
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         setContent {
             androidx.compose.material3.MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -298,7 +313,11 @@ private fun VyomaApp() {
                     blueprintIdea = it.prompt
                     selectedTab = 2
                 },
-                onSeeProjects = { selectedTab = 1 }
+                onSeeProjects = { selectedTab = 1 },
+                onAddResearch = { suggestion ->
+                    blueprintIdea = suggestion
+                    selectedTab = 2
+                }
             )
             1 -> ProjectsScreen(
                 modifier = Modifier.padding(insets),
@@ -341,122 +360,206 @@ private fun HomeScreen(
     onStart: () -> Unit,
     onTemplatePreview: (StarterTemplate) -> Unit,
     onUseTemplate: (StarterTemplate) -> Unit,
-    onSeeProjects: () -> Unit
+    onSeeProjects: () -> Unit,
+    onAddResearch: (String) -> Unit
 ) {
+    var showAttachMenu by remember { mutableStateOf(false) }
+    val researchIdeas = listOf(
+        "A habit tracker with daily goals and progress charts",
+        "A bus timetable app with verified routes and saved stops",
+        "A simple expense tracker that works offline"
+    )
     Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
+        modifier = modifier.fillMaxSize().padding(horizontal = 18.dp)
     ) {
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(22.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Surface(color = Mint, shape = CircleShape) {
-                    Text("BETA", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Navy, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Explore with Vyoma", color = Navy, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Research an idea before you build it.", color = Muted, fontSize = 13.sp)
                 }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("Dream it.\nBuild it.", color = Navy, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Tell Vyoma your idea. We’ll shape the plan together before building anything.", color = Muted, fontSize = 15.sp, lineHeight = 22.sp)
+                Surface(color = Mint, shape = CircleShape) {
+                    Text("BETA", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = Navy, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                }
             }
 
             Card(
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Navy),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(color = Color(0xFFE5F7EC), shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(color = Mint, shape = RoundedCornerShape(16.dp), modifier = Modifier.size(54.dp)) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = Green, modifier = Modifier.size(19.dp))
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Navy, modifier = Modifier.size(29.dp))
                             }
                         }
-                        Column {
-                            Text("Start with an idea", color = Navy, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text("AI planning · no code needed", color = Muted, fontSize = 11.sp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Demo project", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("GoalGarden · Habit tracker", color = Color(0xFFD5E3E5), fontSize = 12.sp)
                         }
                     }
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(94.dp).background(Cream, RoundedCornerShape(16.dp)).padding(13.dp)
-                    ) {
-                        if (idea.isEmpty()) {
-                            Text("I want to build an app that…", color = Muted, fontSize = 14.sp)
-                        }
-                        BasicTextField(
-                            value = idea,
-                            onValueChange = onIdeaChange,
-                            modifier = Modifier.fillMaxSize(),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Navy, fontSize = 14.sp, lineHeight = 20.sp),
-                            decorationBox = { inner -> inner() }
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("You’ll review the blueprint first", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                        Button(
-                            onClick = onStart,
-                            enabled = idea.isNotBlank(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Navy, contentColor = Color.White),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 15.dp, vertical = 11.dp)
+                    Text("Explore a sample app idea, its screens and the kind of blueprint Vyoma can help you prepare.", color = Color(0xFFE5EFEC), fontSize = 13.sp, lineHeight = 19.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        OutlinedButton(
+                            onClick = { onTemplatePreview(templates.first()) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Text("Plan idea")
-                            Spacer(Modifier.width(7.dp))
-                            Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Preview demo", fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = { onUseTemplate(templates.first()) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Navy),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text("Use as starting point", fontSize = 12.sp)
                         }
                     }
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        Text("Need a starting point?", color = Navy, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                        Text("Pick a template and make it yours", color = Muted, fontSize = 12.sp)
-                    }
-                    Surface(color = Color(0xFFEAF0EB), shape = RoundedCornerShape(10.dp)) {
-                        Text("6 STARTERS", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    templates.forEach { item ->
-                        TemplateCard(item, onPreview = { onTemplatePreview(item) }, onUse = { onUseTemplate(item) })
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Ideas to explore", color = Navy, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("Research first. Add an idea to a project when you're ready.", color = Muted, fontSize = 12.sp)
+                researchIdeas.forEachIndexed { index, suggestion ->
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(11.dp)
+                        ) {
+                            Surface(
+                                color = listOf(Color(0xFFE5F7EC), Color(0xFFE8E8FF), Color(0xFFFFF0D9))[index],
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Navy, modifier = Modifier.size(19.dp))
+                                }
+                            }
+                            Text(suggestion, color = Navy, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                            OutlinedButton(
+                                onClick = { onAddResearch(suggestion) },
+                                shape = RoundedCornerShape(11.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 9.dp, vertical = 7.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(3.dp))
+                                Text("Add", fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Text("Your projects", color = Navy, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                    Text("Your ideas, all in one place", color = Muted, fontSize = 12.sp)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Your projects", color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Continue where you left off", color = Muted, fontSize = 12.sp)
                 }
                 OutlinedButton(onClick = onSeeProjects, shape = RoundedCornerShape(12.dp)) {
                     Text("View all", fontSize = 12.sp)
                 }
             }
-            Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(color = Color(0xFFE8E8FF), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(42.dp)) {
-                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Navy) }
+            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Green, modifier = Modifier.size(25.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("No recent project selected", color = Navy, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Ideas you add will start in blueprint review.", color = Muted, fontSize = 11.sp)
                     }
-                    Column(Modifier.weight(1f)) {
-                        Text("Your next big idea starts here", color = Navy, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Create a project or start from a template.", color = Muted, fontSize = 11.sp)
-                    }
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Muted)
                 }
             }
-            Text("Starter UI only · AI, cloud builds and project sync are not connected yet.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 12.dp))
+        }
+
+        Surface(
+            color = Color.White,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (showAttachMenu) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
+                        listOf(
+                            "Files" to "Attach a file or project ZIP",
+                            "Image" to "Add a screenshot or design reference",
+                            "Web search" to "Research information on the web",
+                            "Plugin" to "Use a connected plugin or MCP tool"
+                        ).forEach { (title, subtitle) ->
+                            Row(
+                                Modifier.fillMaxWidth().background(Cream, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text("+", color = Green, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(title, color = Navy, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(subtitle, color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                        Text("Attachment menu concept · connections are not active yet", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp, top = 3.dp))
+                    }
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(76.dp).background(Cream, RoundedCornerShape(15.dp)).padding(12.dp)
+                ) {
+                    if (idea.isEmpty()) {
+                        Text("Ask Vyoma to research an app idea…", color = Muted, fontSize = 14.sp)
+                    }
+                    BasicTextField(
+                        value = idea,
+                        onValueChange = onIdeaChange,
+                        modifier = Modifier.fillMaxSize(),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Navy, fontSize = 14.sp, lineHeight = 20.sp),
+                        decorationBox = { inner -> inner() }
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(onClick = { showAttachMenu = !showAttachMenu }) {
+                        Icon(Icons.Default.Add, contentDescription = "Open attachment options", tint = Green, modifier = Modifier.size(25.dp))
+                    }
+                    Text("Research", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    Button(
+                        onClick = onStart,
+                        enabled = idea.isNotBlank(),
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Navy, contentColor = Color.White),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text("Send")
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(15.dp))
+                    }
+                }
+            }
         }
     }
 }
-
 @Composable
 private fun TemplateCard(item: StarterTemplate, onPreview: () -> Unit, onUse: () -> Unit) {
     Card(
@@ -572,6 +675,7 @@ private fun SettingsScreen(modifier: Modifier) {
                 }
             }
         }
+        UpdateSettingsCard()
         Text("Settings are visual placeholders at this stage.", color = Muted, fontSize = 12.sp)
     }
 }
