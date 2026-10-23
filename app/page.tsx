@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import GitHubConnector from "./components/GitHubConnector";
 
 type Project = {
   name: string;
@@ -136,6 +137,7 @@ export default function HomePage() {
               <div className="memory-tags"><span>✓ Decisions</span><span>◫ Design rules</span><span>↻ Fix history</span></div>
             </section>
           </div>
+          <GitHubConnector />
           <footer className="footer-note"><span>✳</span> Built around your ideas, with you in control. <span className="prototype-label">Early prototype · No AI or backend connected</span></footer>
         </div>
       </section>
