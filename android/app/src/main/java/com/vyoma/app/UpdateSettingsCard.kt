@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,7 +54,7 @@ private data class LatestVyomaBuild(
 internal fun UpdateSettingsCard() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var message by remember { mutableStateOf("Check whether a newer Vyoma test build is available.") }
+    var message by remember { mutableStateOf("Tap Check updates to contact the Vyoma release server.") }
     var latestBuild by remember { mutableStateOf<LatestVyomaBuild?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -68,26 +70,36 @@ internal fun UpdateSettingsCard() {
         ) {
             Text("Vyoma app updates", color = Navy, fontWeight = FontWeight.Bold)
             Text(message, color = Muted)
+            if (busy) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator()
+                    Text("Please wait…", color = Muted)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     enabled = !busy,
                     onClick = {
                         busy = true
+                        latestBuild = null
                         message = "Checking latest test build…"
+                        Toast.makeText(context, "Vyoma: checking for updates", Toast.LENGTH_SHORT).show()
                         scope.launch {
                             try {
                                 val result = withContext(Dispatchers.IO) { fetchLatestBuild() }
-                                val installedCode = context.packageManager
-                                    .getPackageInfo(context.packageName, 0).longVersionCode
+                                val installedCode = PackageInfoCompat.getLongVersionCode(
+                                    context.packageManager.getPackageInfo(context.packageName, 0)
+                                )
                                 latestBuild = result
                                 downloadedApk = null
                                 message = if (result.versionCode > installedCode) {
-                                    "Update available: Vyoma ${result.versionName} (build ${result.versionCode})."
+                                    "Update available: Vyoma ${result.versionName} (build ${result.versionCode}). Tap Download update."
                                 } else {
-                                    "You're using the latest published test build (or a newer build)."
+                                    "You're up to date. Installed build: $installedCode; latest build: ${result.versionCode}."
                                 }
                             } catch (error: Exception) {
-                                message = "Could not check updates. Check your internet connection and try again."
+                                val detail = error.message?.take(100)?.ifBlank { null } ?: error.javaClass.simpleName
+                                message = "Update check failed: $detail. Check internet and try again."
                             } finally {
                                 busy = false
                             }
@@ -97,21 +109,21 @@ internal fun UpdateSettingsCard() {
 
                 Button(
                     enabled = !busy && latestBuild != null &&
-                        (latestBuild?.versionCode ?: 0L) > PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(context.packageName, 0)),
+                        (latestBuild?.versionCode ?: 0L) > PackageInfoCompat.getLongVersionCode(
+                            context.packageManager.getPackageInfo(context.packageName, 0)
+                        ),
                     onClick = {
                         val build = latestBuild ?: return@Button
                         busy = true
                         message = "Downloading and verifying the APK…"
                         scope.launch {
                             try {
-                                val apk = downloadedApk ?: withContext(Dispatchers.IO) {
-                                    downloadAndVerify(build)
-                                }
+                                val apk = downloadedApk ?: withContext(Dispatchers.IO) { downloadAndVerify(build) }
                                 downloadedApk = apk
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                                     !context.packageManager.canRequestPackageInstalls()
                                 ) {
-                                    message = "APK verified. Allow Vyoma to install updates on the next screen, then return and tap Install update again."
+                                    message = "APK verified. Allow Vyoma to install unknown apps, return here, then tap Install update."
                                     context.startActivity(
                                         Intent(
                                             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -129,10 +141,11 @@ internal fun UpdateSettingsCard() {
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
                                     context.startActivity(installIntent)
-                                    message = "APK verified. Android will ask you to confirm installation."
+                                    message = "APK verified. Confirm installation in Android's installer."
                                 }
                             } catch (error: Exception) {
-                                message = "Download or verification failed. No APK was installed."
+                                val detail = error.message?.take(100)?.ifBlank { null } ?: error.javaClass.simpleName
+                                message = "Download/install handoff failed: $detail. No APK was installed by Vyoma."
                             } finally {
                                 busy = false
                             }
@@ -141,7 +154,7 @@ internal fun UpdateSettingsCard() {
                 ) { Text(if (downloadedApk == null) "Download update" else "Install update") }
             }
             Text(
-                "Test channel only. APK integrity is checked before opening Android's installer. Installation always requires Android/user confirmation.",
+                "Test channel only. APK integrity is checked before opening Android's installer. Android requires confirmation to install.",
                 color = Muted
             )
         }
@@ -149,20 +162,25 @@ internal fun UpdateSettingsCard() {
 }
 
 private fun fetchLatestBuild(): LatestVyomaBuild {
-    val connection = (URL(UPDATE_METADATA_URL).openConnection() as HttpURLConnection).apply {
-        connectTimeout = 12000
-        readTimeout = 12000
+    val connection = (URL("$UPDATE_METADATA_URL?check=${System.currentTimeMillis()}").openConnection() as HttpURLConnection).apply {
+        connectTimeout = 15000
+        readTimeout = 15000
         requestMethod = "GET"
+        instanceFollowRedirects = true
         setRequestProperty("Accept", "application/json")
         setRequestProperty("Cache-Control", "no-cache")
+        setRequestProperty("User-Agent", "Vyoma-Android-Updater")
     }
     try {
-        if (connection.responseCode !in 200..299) error("Update metadata unavailable")
+        val status = connection.responseCode
+        if (status !in 200..299) error("Release server returned HTTP $status")
         val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
         val apkUrl = json.getString("apkUrl")
-        require(apkUrl.startsWith("https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/"))
+        require(apkUrl.startsWith("https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/")) {
+            "Unexpected APK download address"
+        }
         val sha = json.getString("sha256").lowercase()
-        require(sha.matches(Regex("[a-f0-9]{64}")))
+        require(sha.matches(Regex("[a-f0-9]{64}"))) { "Invalid APK checksum metadata" }
         return LatestVyomaBuild(
             versionName = json.getString("versionName"),
             versionCode = json.getLong("versionCode"),
@@ -178,12 +196,14 @@ private fun fetchLatestBuild(): LatestVyomaBuild {
 private fun downloadAndVerify(build: LatestVyomaBuild): File {
     val connection = (URL(build.apkUrl).openConnection() as HttpURLConnection).apply {
         connectTimeout = 15000
-        readTimeout = 30000
+        readTimeout = 45000
         instanceFollowRedirects = true
+        setRequestProperty("User-Agent", "Vyoma-Android-Updater")
     }
     val target = File.createTempFile("vyoma-update-", ".apk")
     try {
-        if (connection.responseCode !in 200..299) error("APK download failed")
+        val status = connection.responseCode
+        if (status !in 200..299) error("APK server returned HTTP $status")
         connection.inputStream.use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         }
@@ -199,7 +219,7 @@ private fun downloadAndVerify(build: LatestVyomaBuild): File {
         }
         if (!actual.equals(build.sha256, ignoreCase = true)) {
             target.delete()
-            error("APK checksum mismatch")
+            error("APK checksum does not match")
         }
         return target
     } finally {
