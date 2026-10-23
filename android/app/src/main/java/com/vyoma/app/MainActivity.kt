@@ -141,7 +141,7 @@ private fun VyomaApp() {
         1 -> "Projects"
         2 -> "Blueprint review"
         3 -> "Preview"
-        else -> "Settings"
+        else -> "AI connection"
     }
 
     ModalNavigationDrawer(
@@ -346,7 +346,7 @@ private fun VyomaApp() {
                 }
             )
             3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
-            else -> SettingsScreen(Modifier.padding(insets))
+            else -> AiConnectionSettings(Modifier.padding(insets))
         }
         }
     }

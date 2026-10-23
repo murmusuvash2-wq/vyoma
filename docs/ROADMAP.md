@@ -24,6 +24,17 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** a user can create and approve a blueprint in the Android app without code being generated.
 
+## M1.5 — AI provider connection (Phase A)
+- [x] Native AI connection settings in the Android app
+- [x] Configurable HTTPS OpenAI-compatible chat-completions endpoint and model
+- [x] BYOK API key encrypted at rest with Android Keystore AES-GCM
+- [x] Save-and-test flow and visible provider error handling
+- [ ] Validate with a real provider key on a physical Android device
+- [ ] Add authenticated backend proxy, quotas, and server-side provider secret management before public production
+- [ ] Add streaming and persistent chat history
+
+**Exit gate:** a real provider request succeeds on a device and invalid credentials fail safely. Source implementation alone does not satisfy this gate.
+
 ## M2 — Workspace and durable project memory
 - [ ] Project workspace with chat, preview, files/diff, tests, and activity
 - [ ] Define versioned memory records and provenance
