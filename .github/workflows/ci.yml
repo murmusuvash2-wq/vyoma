@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "app/**"
+      - "lib/**"
       - "package.json"
       - "package-lock.json"
       - "next.config.ts"
@@ -12,7 +13,6 @@ on:
       - "eslint.config.mjs"
       - ".github/workflows/ci.yml"
   pull_request:
-    branches: [main]
     paths:
       - "app/**"
       - "package.json"
