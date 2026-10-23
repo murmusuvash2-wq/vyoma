@@ -24,29 +24,25 @@ android {
             val keyAliasValue = System.getenv("ANDROID_KEY_ALIAS")
             val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
 
-            if (!keystorePath.isNullOrBlank()) {
+            // Leave this config unpopulated for debug-only CI builds. The release workflow
+            // validates all secrets before invoking assembleRelease.
+            if (
+                !keystorePath.isNullOrBlank() &&
+                !keystorePassword.isNullOrBlank() &&
+                !keyAliasValue.isNullOrBlank() &&
+                !keyPasswordValue.isNullOrBlank()
+            ) {
                 storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
             }
-            if (!keystorePassword.isNullOrBlank()) storePassword = keystorePassword
-            if (!keyAliasValue.isNullOrBlank()) keyAlias = keyAliasValue
-            if (!keyPasswordValue.isNullOrBlank()) keyPassword = keyPasswordValue
         }
     }
 
     buildTypes {
         release {
-            // A stable upload key should be configured in GitHub Actions secrets for updates.
-            // Until then, use the debug key for installable test builds only.
-            signingConfig = if (
-                !System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank() &&
-                !System.getenv("ANDROID_KEYSTORE_PASSWORD").isNullOrBlank() &&
-                !System.getenv("ANDROID_KEY_ALIAS").isNullOrBlank() &&
-                !System.getenv("ANDROID_KEY_PASSWORD").isNullOrBlank()
-            ) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

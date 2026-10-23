@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: Version name for a test APK (for example 0.1.1)
-        required: false
-        default: 0.1.1
+        description: Version name for a signed APK (for example 0.1.2)
+        required: true
+        default: 0.1.2
   push:
     tags:
       - "v*"
@@ -18,15 +18,25 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     env:
-      RELEASE_SIGNING_READY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
       ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/release-key.jks
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-    defaults:
-      run:
-        working-directory: android
     steps:
+      - name: Validate stable signing secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Required GitHub Actions secret $name is not configured. Refusing to create a debug-signed APK."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -42,9 +52,9 @@ jobs:
           gradle-version: "8.13"
 
       - name: Decode stable release keystore
-        if: env.RELEASE_SIGNING_READY == 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
         run: |
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           test -s "$ANDROID_KEYSTORE_PATH"
@@ -57,43 +67,43 @@ jobs:
             VERSION="${GITHUB_REF_NAME#v}"
           else
             VERSION="${{ inputs.version_name }}"
-            VERSION="${VERSION:-0.1.1}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]]; then
+            echo "::error::Invalid version_name: $VERSION"
+            exit 1
           fi
           echo "name=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Build signed release APK
-        if: env.RELEASE_SIGNING_READY == 'true'
+        working-directory: android
         run: gradle --no-daemon assembleRelease -PvyomaVersionName="${{ steps.version.outputs.name }}" -PvyomaVersionCode="${{ steps.version.outputs.code }}"
 
-      - name: Build installable debug-signed APK (testing only)
-        if: env.RELEASE_SIGNING_READY != 'true'
-        run: gradle --no-daemon assembleDebug -PvyomaVersionName="${{ steps.version.outputs.name }}" -PvyomaVersionCode="${{ steps.version.outputs.code }}"
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -n "$SDK_ROOT"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Prepare APK and signing note
+      - name: Prepare signed APK and checksum
         id: package
-        working-directory: .
         shell: bash
         run: |
           mkdir -p release-output
-          if [[ "$RELEASE_SIGNING_READY" == "true" ]]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
-            APK_PATH="release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
-            echo "apk=$APK_PATH" >> "$GITHUB_OUTPUT"
-            echo "signing=Stable release signing configured." >> "$GITHUB_OUTPUT"
-          else
-            cp android/app/build/outputs/apk/debug/app-debug.apk "release-output/Vyoma-${{ steps.version.outputs.name }}-DEBUG.apk"
-            APK_PATH="release-output/Vyoma-${{ steps.version.outputs.name }}-DEBUG.apk"
-            echo "apk=$APK_PATH" >> "$GITHUB_OUTPUT"
-            echo "signing=WARNING: debug-signed test APK. Do not use this build for upgrades across different CI runs; configure the stable signing secrets first." >> "$GITHUB_OUTPUT"
-          fi
-          sha256sum "$APK_PATH" > release-output/SHA256SUMS.txt
+          cp android/app/build/outputs/apk/release/app-release.apk "release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
+          sha256sum "release-output/Vyoma-${{ steps.version.outputs.name }}.apk" > release-output/SHA256SUMS.txt
+          echo "signing=Stable release signing key used." >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact for manual runs
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: vyoma-apk-${{ steps.version.outputs.name }}
+          name: vyoma-signed-apk-${{ steps.version.outputs.name }}
           path: release-output/*
           if-no-files-found: error
           retention-days: 14
@@ -106,8 +116,6 @@ jobs:
           generate_release_notes: true
           files: release-output/*
           body: |
-            APK build for Vyoma ${{ steps.version.outputs.name }}.
-
-            Signing status: ${{ steps.package.outputs.signing }}
-
+            Signed APK build for Vyoma ${{ steps.version.outputs.name }}.
+            Stable release signing is required; debug-signed fallback is disabled.
             SHA-256 checksum is included in SHA256SUMS.txt.
