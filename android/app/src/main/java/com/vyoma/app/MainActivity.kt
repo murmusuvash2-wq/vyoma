@@ -660,6 +660,7 @@ private fun SettingsScreen(modifier: Modifier) {
                 }
             }
         }
+        UpdateSettingsCard()
         Text("Settings are visual placeholders at this stage.", color = Muted, fontSize = 12.sp)
     }
 }
