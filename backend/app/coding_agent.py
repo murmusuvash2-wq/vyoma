@@ -178,3 +178,145 @@ def plan_code_changes(
         rationales.append(rationale[:1000])
 
     return CodingPlan(summary=summary.strip()[:2000], changes=tuple(proposals), rationale=tuple(rationales))
+
+
+
+# --- Development API: authenticated plan/review/apply lifecycle -----------------
+# This deliberately uses in-memory task state and is not production-ready.
+import os
+import re
+import secrets
+import threading
+import uuid
+from fastapi import Depends, FastAPI, Header, HTTPException
+from pydantic import BaseModel, Field
+from app.agent_workspace import apply_approved_change
+
+api = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
+_PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_api_tasks_lock = threading.Lock()
+_api_tasks: dict[str, dict[str, Any]] = {}
+
+
+class PlanTaskRequest(BaseModel):
+    goal: str = Field(min_length=1, max_length=4000)
+    model: str | None = Field(default=None, max_length=200)
+
+
+def _require_api_token(authorization: str | None = Header(default=None)) -> None:
+    expected = os.environ.get("VYOMA_BACKEND_API_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="Backend authentication is not configured.")
+    scheme, _, supplied = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not supplied or not secrets.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="Valid bearer authentication is required.")
+
+
+def _resolve_project_workspace(project_id: str) -> Path:
+    if not _PROJECT_ID_PATTERN.fullmatch(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID.")
+    configured = os.environ.get("VYOMA_WORKSPACE_ROOT", "").strip()
+    if not configured:
+        raise HTTPException(status_code=503, detail="Workspace root is not configured.")
+    root = Path(configured).expanduser().resolve()
+    project = (root / project_id).resolve()
+    try:
+        project.relative_to(root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Project path is outside the workspace root.") from None
+    if not project.is_dir():
+        raise HTTPException(status_code=404, detail="Project workspace was not found.")
+    return project
+
+
+def _provider_settings(model_override: str | None) -> tuple[str, str, str]:
+    endpoint = os.environ.get("VYOMA_AI_ENDPOINT", "").strip()
+    model = (model_override or os.environ.get("VYOMA_AI_MODEL", "")).strip()
+    key = os.environ.get("VYOMA_AI_API_KEY", "").strip()
+    if not endpoint or not model or not key:
+        raise HTTPException(status_code=503, detail="Server-side AI provider configuration is incomplete.")
+    return endpoint, model, key
+
+
+def _task_json(task: dict[str, Any]) -> dict[str, Any]:
+    plan: CodingPlan = task["plan"]
+    return {
+        "task_id": task["task_id"],
+        "project_id": task["project_id"],
+        "status": task["status"],
+        "summary": plan.summary,
+        "changes": [
+            {
+                "path": proposal.relative_path,
+                "diff": proposal.unified_diff,
+                "rationale": plan.rationale[index],
+                "original_exists": proposal.original_exists,
+            }
+            for index, proposal in enumerate(plan.changes)
+        ],
+        "error": task.get("error"),
+    }
+
+
+@api.get("/health")
+def api_health() -> dict[str, str]:
+    return {"status": "ok", "mode": "development-foundation"}
+
+
+@api.post("/v1/projects/{project_id}/tasks/plan")
+def api_create_plan(
+    project_id: str,
+    body: PlanTaskRequest,
+    _: None = Depends(_require_api_token),
+) -> dict[str, Any]:
+    workspace = _resolve_project_workspace(project_id)
+    endpoint, model, key = _provider_settings(body.model)
+    try:
+        plan = plan_code_changes(workspace, body.goal, endpoint=endpoint, model=model, api_key=key)
+    except CodingAgentError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from None
+    task_id = str(uuid.uuid4())
+    task = {
+        "task_id": task_id,
+        "project_id": project_id,
+        "workspace": workspace,
+        "plan": plan,
+        "status": "WAITING_FOR_APPROVAL" if plan.changes else "READY_FOR_REVIEW",
+    }
+    with _api_tasks_lock:
+        _api_tasks[task_id] = task
+    return _task_json(task)
+
+
+@api.get("/v1/tasks/{task_id}")
+def api_get_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[str, Any]:
+    with _api_tasks_lock:
+        task = _api_tasks.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task was not found.")
+    return _task_json(task)
+
+
+@api.post("/v1/tasks/{task_id}/approve")
+def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[str, Any]:
+    with _api_tasks_lock:
+        task = _api_tasks.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task was not found.")
+        if task["status"] != "WAITING_FOR_APPROVAL":
+            raise HTTPException(status_code=409, detail="Task is not waiting for approval.")
+        plan: CodingPlan = task["plan"]
+        # Until transactional multi-file apply/checkpointing exists, refuse it.
+        if len(plan.changes) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail="This development API only applies one-file plans. Review and split the task.",
+            )
+        try:
+            apply_approved_change(task["workspace"], plan.changes[0], approved=True)
+        except (WorkspaceError, OSError):
+            task["status"] = "FAILED"
+            task["error"] = "Workspace changed or the approved change could not be applied safely. Re-plan."
+            raise HTTPException(status_code=409, detail=task["error"]) from None
+        task["status"] = "SUCCEEDED"
+        return _task_json(task)
