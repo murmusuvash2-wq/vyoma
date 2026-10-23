@@ -1,44 +1,45 @@
-# Phase B — Coding agent foundation
+# Phase B — Coding-agent foundation
 
-## Goal
+## Implemented in this increment
+- Restricted task-workspace file listing and UTF-8 source reading.
+- Provider-backed planner sends bounded project context to an HTTPS OpenAI-compatible chat-completions endpoint and expects structured JSON.
+- Model output becomes a reviewable file-change proposal and unified diff; planning itself never mutates source files.
+- Development FastAPI endpoints provide plan creation, task lookup, and explicit approval.
+- API uses a configured server-side bearer token and validates project IDs under a configured workspace root; clients cannot supply arbitrary filesystem paths.
+- Applying a proposal checks the original content for staleness. The API currently applies one-file proposals only because multi-file transactional writes/checkpoints are not implemented.
+- Unit tests use a mocked provider; no real AI key is required for CI.
 
-Move Vyoma from AI connection into a controlled coding workflow. Vyoma remains an Android-native Kotlin/Jetpack Compose app; agent orchestration belongs in the backend, not in the Android APK.
+## Run locally
+From the backend directory install requirements-dev.txt. Configure VYOMA_BACKEND_API_TOKEN, VYOMA_WORKSPACE_ROOT, VYOMA_AI_ENDPOINT, VYOMA_AI_MODEL, and VYOMA_AI_API_KEY as server-side environment variables. Never commit or pass the provider key to Android.
 
-## First increment implemented
+Run the development API on localhost with:
+uvicorn app.coding_agent:api --host 127.0.0.1 --port 8000
 
-- A scoped workspace module can list and read supported source/text files.
-- The agent can prepare a file-change proposal and unified diff without changing the workspace.
-- Applying a proposal requires an explicit approval flag and checks that the source file has not changed since review.
-- Paths are constrained to a task workspace; path traversal and symlink paths are rejected.
-- Common generated/build folders are excluded from listing; file sizes and list counts are bounded.
-- Unit tests cover non-mutation before approval, approved changes, stale proposals, path traversal, symlink escape, and build-folder exclusion.
+Do not expose this service publicly.
 
 ## Architecture decision
+OpenHands Software Agent SDK remains the candidate for the future main coding-agent runtime. Current provider planner is not the OpenHands SDK and is not an autonomous tool-using agent. No shell command execution is implemented.
 
-OpenHands Software Agent SDK remains the selected candidate for the main coding-agent runtime. The workspace module is an intentionally narrow tool boundary that can be adapted to SDK tool calls; it is not itself the OpenHands SDK and does not yet run an autonomous agent. Planner/reviewer responsibilities remain separate modules, not independent autonomous agents.
-
-## Security gates before a live agent
-
-1. Authenticate users and authorize every project/task.
-2. Provision a disposable workspace per task; never use an arbitrary server path from a client request.
-3. Add audit events for proposed, approved, applied, rejected, and reverted changes.
-4. Integrate OpenHands behind the typed workspace tools; do not give the model a generic shell.
-5. Require user review of diffs before mutation and before external GitHub writes.
-6. Run tests/builds in an isolated worker with time, CPU, memory, network and cost limits.
-7. Keep provider credentials request-scoped or in a secret manager; redact logs.
-8. Report every check as pass/fail/not-run and tie results to a source revision.
+## Security/production gates
+1. Add per-user authentication and project ownership authorization.
+2. Provision disposable isolated workspaces; never accept client-provided server filesystem paths.
+3. Add durable task state, audit events, quotas, cancellation, and redacted observability.
+4. Integrate OpenHands behind the narrow workspace tools; do not give the model unrestricted shell access.
+5. Keep explicit human approval before file writes and external GitHub changes.
+6. Implement transactional multi-file changes, checkpoints, rollback, and stale revision protection.
+7. Run builds/tests in an isolated worker with CPU, memory, network, time and cost limits.
+8. Connect Android task UI and diff review to the authenticated API.
+9. Add cloud Gradle builds and APK artifact delivery only after worker isolation and security gates pass.
 
 ## Acceptance status
+- [x] Workspace safety tools and reviewable diffs
+- [x] Provider-backed planning with response/path validation
+- [x] Authenticated development API for plan/status/approval
+- [x] Unit tests and backend CI passing on the current branch
+- [ ] OpenHands SDK runtime/autonomous loop
+- [ ] Per-user authentication and durable task storage
+- [ ] Android workspace chat/diff UI
+- [ ] Transactional edits, rollback and audit history
+- [ ] Isolated build worker and APK delivery
 
-- [x] Initial restricted workspace tool contract and implementation
-- [x] Explicit approval gate for file mutation
-- [x] Stale-proposal conflict detection
-- [x] Unit tests for core workspace safety behavior
-- [ ] Run backend test suite in CI
-- [ ] Integrate OpenHands SDK agent loop
-- [ ] Add authenticated task API and durable task state
-- [ ] Connect the Android workspace UI to the backend
-- [ ] Add diff/review/undo UI and approval records
-- [ ] Isolated Android build worker and APK artifact delivery
-
-This is the first Phase B increment, not a completed coding agent.
+This is progress toward Phase B, not a complete coding agent or production-ready backend.
