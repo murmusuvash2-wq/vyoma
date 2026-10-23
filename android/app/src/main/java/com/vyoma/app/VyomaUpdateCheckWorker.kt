@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.app.PendingIntent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -108,10 +109,12 @@ internal class VyomaUpdateCheckWorker(
                 val launchIntent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)
                     ?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 val pendingIntent = launchIntent?.let {
-                    androidx.core.app.PendingIntentCompat.getActivity(
-                        applicationContext, 7041, it,
-                        androidx.appsearch.app.AppSearchManager.ACTION_APP_SEARCH, // placeholder removed below
-                        0
+                    PendingIntent.getActivity(
+                        applicationContext,
+                        7041,
+                        it,
+                        PendingIntent.FLAG_UPDATE_CURRENT or
+                            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
                     )
                 }
                 val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
