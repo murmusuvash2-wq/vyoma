@@ -7,6 +7,7 @@
 - Encrypted HttpOnly cookie session; the access token is never returned to the client.
 - Connection status and disconnect endpoints.
 - Repository listing and text-file read/update endpoints through GitHub's API.
+- Workspace UI for GitHub connect/status/disconnect, repository selection, file read/edit, commit message, explicit save confirmation, and working-branch creation/selection.
 - File updates require the current Git blob SHA and a commit message. Conflicts require re-reading the file rather than blindly retrying.
 - Same-origin check for mutating endpoints and input/path validation.
 
@@ -33,7 +34,7 @@ Register `<GITHUB_REDIRECT_BASE_URL>/api/github/callback` as the OAuth callback 
 
 ## Audit findings and limitations
 
-- The existing Android app has no GitHub account connection UI wired to these routes yet.
+- The Android APK is not wired to these routes; the connector UI currently lives in the temporary Next.js web prototype.
 - No OAuth credentials or server deployment have been configured or verified; the endpoints are code only until configured and tested end-to-end.
 - The connected Supabase projects visible during audit were both `INACTIVE` and are not assumed to be Vyoma infrastructure. This change does not activate or alter them.
 - This starter flow requests OAuth `repo read:user`; GitHub's `repo` scope is broad and includes read/write access across repositories the user can access. For production, prefer a GitHub App with selected repository access and only Contents read/write plus Metadata read-only permissions.
