@@ -91,7 +91,7 @@ export default function GitHubConnector() {
     </div>
     {status.connected && <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
       <label style={{ display: "grid", gap: 6, fontWeight: 600 }}>Repository
-        <select value={repo} onChange={(e) => { setRepo(e.target.value); setFile(null); }} style={{ padding: 12, borderRadius: 10, border: "1px solid #cfd9d2", background: "white" }}>
+        <select value={repo} onChange={(e) => { const selected = repos.find((item) => item.fullName === e.target.value); setRepo(e.target.value); setTargetBranch(selected?.defaultBranch ?? ""); setFile(null); }} style={{ padding: 12, borderRadius: 10, border: "1px solid #cfd9d2", background: "white" }}>
           {repos.map((r) => <option key={r.id} value={r.fullName}>{r.fullName}{r.private ? " · private" : ""}</option>)}
         </select>
       </label>
