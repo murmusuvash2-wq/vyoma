@@ -51,6 +51,11 @@ export default function GitHubConnector() {
   }
   async function saveFile() {
     if (!file) return;
+    const selectedRepo = repos.find((item) => item.fullName === repo);
+    if (selectedRepo?.defaultBranch && targetBranch === selectedRepo.defaultBranch) {
+      setNotice("For safety, create/select a working branch, then re-read the file before saving.");
+      return;
+    }
     if (!window.confirm("Save this content to GitHub as a commit?")) return;
     setBusy(true); setNotice("");
     try {
