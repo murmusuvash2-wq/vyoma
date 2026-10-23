@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { githubApiHeaders, readGitHubSession, requireSameOrigin } from "@/lib/github-session";
 export const runtime = "nodejs";
 const validRepo = (v: string) => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(v);
-const validBranch = (v: string) => v.length >= 1 && v.length <= 200 && !v.startsWith("-") && !v.includes("..") && !v.endsWith("/") && !v.startsWith("/") && !/[ ~^:?*[\\\\]/.test(v);
+const validBranch = (v: string) => v.length >= 1 && v.length <= 200 && !v.startsWith("-") && !v.includes("..") && !v.endsWith("/") && !v.startsWith("/") && !/[ ~^:?*\\[\\]\\\\]/.test(v);
 export async function POST(request: NextRequest) {
   if (!(await requireSameOrigin())) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   const session = await readGitHubSession();
