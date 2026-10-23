@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,7 +97,7 @@ internal fun UpdateSettingsCard() {
 
                 Button(
                     enabled = !busy && latestBuild != null &&
-                        (latestBuild?.versionCode ?: 0L) > context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode,
+                        (latestBuild?.versionCode ?: 0L) > PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(context.packageName, 0)),
                     onClick = {
                         val build = latestBuild ?: return@Button
                         busy = true
