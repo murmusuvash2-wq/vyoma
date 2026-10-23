@@ -94,6 +94,7 @@ private val templates = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UpdateCheckScheduler.schedule(this)
         setContent {
             androidx.compose.material3.MaterialTheme(
                 colorScheme = lightColorScheme(
