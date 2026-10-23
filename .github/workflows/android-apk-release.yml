@@ -6,8 +6,11 @@ on:
       version_name:
         description: Version name for a signed APK (for example 0.1.2)
         required: true
-        default: 0.1.2
+        default: 0.1.3
   push:
+    branches:
+      - main
+      - "feature/approved-homepage-layout"
     tags:
       - "v*"
 
@@ -65,8 +68,10 @@ jobs:
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
-          else
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             VERSION="${{ inputs.version_name }}"
+          else
+            VERSION="0.1.3"
           fi
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]]; then
             echo "::error::Invalid version_name: $VERSION"
@@ -99,8 +104,8 @@ jobs:
           sha256sum "release-output/Vyoma-${{ steps.version.outputs.name }}.apk" > release-output/SHA256SUMS.txt
           echo "signing=Stable release signing key used." >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK artifact for manual runs
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload signed APK artifact for testing
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'branch')
         uses: actions/upload-artifact@v4
         with:
           name: vyoma-signed-apk-${{ steps.version.outputs.name }}
