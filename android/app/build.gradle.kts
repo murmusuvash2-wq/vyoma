@@ -24,29 +24,21 @@ android {
             val keyAliasValue = System.getenv("ANDROID_KEY_ALIAS")
             val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
 
-            if (!keystorePath.isNullOrBlank()) {
-                storeFile = file(keystorePath)
-            }
-            if (!keystorePassword.isNullOrBlank()) storePassword = keystorePassword
-            if (!keyAliasValue.isNullOrBlank()) keyAlias = keyAliasValue
-            if (!keyPasswordValue.isNullOrBlank()) keyPassword = keyPasswordValue
+            require(!keystorePath.isNullOrBlank()) { "ANDROID_KEYSTORE_PATH is required for release signing." }
+            require(!keystorePassword.isNullOrBlank()) { "ANDROID_KEYSTORE_PASSWORD is required for release signing." }
+            require(!keyAliasValue.isNullOrBlank()) { "ANDROID_KEY_ALIAS is required for release signing." }
+            require(!keyPasswordValue.isNullOrBlank()) { "ANDROID_KEY_PASSWORD is required for release signing." }
+
+            storeFile = file(keystorePath)
+            storePassword = keystorePassword
+            keyAlias = keyAliasValue
+            keyPassword = keyPasswordValue
         }
     }
 
     buildTypes {
         release {
-            // A stable upload key should be configured in GitHub Actions secrets for updates.
-            // Until then, use the debug key for installable test builds only.
-            signingConfig = if (
-                !System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank() &&
-                !System.getenv("ANDROID_KEYSTORE_PASSWORD").isNullOrBlank() &&
-                !System.getenv("ANDROID_KEY_ALIAS").isNullOrBlank() &&
-                !System.getenv("ANDROID_KEY_PASSWORD").isNullOrBlank()
-            ) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
