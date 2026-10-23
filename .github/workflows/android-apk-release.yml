@@ -84,7 +84,11 @@ jobs:
         run: |
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          jarsigner -verify -strict -certs "$APK"
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -n "$SDK_ROOT"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       - name: Prepare signed APK and checksum
         id: package
