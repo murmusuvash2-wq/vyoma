@@ -1,33 +1,29 @@
 # Vyoma backend — Phase B foundation
 
-This directory begins the Python backend foundation for the Android-native Vyoma app builder.
+This Python service is a development foundation for the Android-native Vyoma app builder.
 
-## Current implementation
+## Implemented
+- Bounded source-file listing and reading plus reviewable file-change proposals.
+- Provider-backed planner that returns diffs only; it does not execute shell commands.
+- Authenticated FastAPI endpoints to create a plan, fetch task status, and explicitly approve a plan.
+- Project paths are selected by a validated project ID beneath the server-configured workspace root; clients cannot submit filesystem paths.
+- Approval checks the workspace snapshot before applying a proposal.
+- The development API only applies one-file plans until transactional multi-file apply/checkpointing is implemented.
+- Unit tests use a mocked provider and require no live API key.
 
-- `app/agent_workspace.py` provides bounded source-file listing and reading, reviewable file-change proposals, and an apply operation that requires explicit approval.
-- `app/coding_agent.py` sends a bounded source context to a configured OpenAI-compatible provider and converts its JSON response into reviewable diffs. It does not apply changes or execute commands.
-- Workspace tools reject path traversal and symlink paths, skip common generated/build folders, limit file sizes, and refuse binary/non-UTF-8 source edits.
-- Applying a proposal verifies that the file has not changed since the proposal was created.
-- `tests/test_agent_workspace.py` exercises the safety and approval behavior.
-- `tests/test_coding_agent.py` tests proposal-only behavior, HTTPS validation, path rejection, and redacted credential errors using a mocked provider (no live API key needed).
+## Local development
+Install requirements-dev.txt, then set these environment variables on the backend process:
+- VYOMA_BACKEND_API_TOKEN: a long random bearer token for local development.
+- VYOMA_WORKSPACE_ROOT: server-owned directory containing one folder per project ID.
+- VYOMA_AI_ENDPOINT: HTTPS OpenAI-compatible chat-completions endpoint.
+- VYOMA_AI_MODEL: model name.
+- VYOMA_AI_API_KEY: server-side provider key. Never commit or send this to Android.
 
-## Not implemented yet
+Run uvicorn app.coding_agent:api --host 127.0.0.1 --port 8000 from this directory. Keep it bound to localhost until proper identity, project authorization, persistent task storage, rate limits, audit logging and isolated workspaces are implemented.
 
-- OpenHands SDK runtime integration or autonomous agent loop. The current planner calls a compatible chat endpoint and returns proposals; it is not yet an autonomous tool-using agent.
-- Authenticated API routes, user identity, project ownership, task persistence, audit database, or quotas.
-- GitHub OAuth/repository workspace creation.
-- Isolated worker, Gradle execution, APK artifacts, or release signing.
-- Public deployment.
-
-These tools are a local module foundation only. Do not expose them through a public endpoint until authentication, project authorization, audit logging, rate limits, and isolated workspace provisioning are in place.
-
-## Run tests
-
-From this directory:
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
-```
-
-No provider keys or GitHub tokens are needed for these tests.
+## Not production-ready
+- Bearer token is a development gate, not per-user authentication.
+- Task state is in memory and is lost on restart.
+- No transactional multi-file writes, audit database, quotas or durable task state.
+- No OpenHands SDK runtime, shell/build worker, GitHub integration, APK artifacts, or Android UI integration yet.
+- Do not expose publicly without per-user authentication, project ownership checks, audit trail, quotas, isolated ephemeral workspaces, and rollback.
