@@ -186,6 +186,7 @@ def plan_code_changes(
 import os
 import re
 import secrets
+import sqlite3
 import threading
 import uuid
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -197,6 +198,87 @@ api = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
 _PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _api_tasks_lock = threading.Lock()
 _api_tasks: dict[str, dict[str, Any]] = {}
+
+_TASK_DB_PATH = Path(os.environ.get(
+    "VYOMA_TASK_DB_PATH",
+    str(Path(__file__).resolve().parents[1] / ".data" / "coding_tasks.sqlite3"),
+)).expanduser()
+
+
+def _task_db() -> sqlite3.Connection:
+    _TASK_DB_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(_TASK_DB_PATH.parent, 0o700)
+    except OSError:
+        pass
+    connection = sqlite3.connect(_TASK_DB_PATH, timeout=10)
+    connection.row_factory = sqlite3.Row
+    connection.execute("CREATE TABLE IF NOT EXISTS coding_tasks (task_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+    try:
+        os.chmod(_TASK_DB_PATH, 0o600)
+    except OSError:
+        pass
+    return connection
+
+
+def _task_payload(task: dict[str, Any]) -> dict[str, Any]:
+    plan: CodingPlan = task["plan"]
+    return {
+        "summary": plan.summary,
+        "rationale": list(plan.rationale),
+        "changes": [
+            {
+                "relative_path": change.relative_path,
+                "original_content": change.original_content,
+                "proposed_content": change.proposed_content,
+                "unified_diff": change.unified_diff,
+                "original_exists": change.original_exists,
+            }
+            for change in plan.changes
+        ],
+        "error": task.get("error"),
+    }
+
+
+def _persist_task(task: dict[str, Any]) -> None:
+    payload = json.dumps(_task_payload(task), ensure_ascii=False)
+    with _task_db() as connection:
+        connection.execute(
+            "INSERT INTO coding_tasks(task_id, project_id, status, payload_json, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(task_id) DO UPDATE SET project_id=excluded.project_id, status=excluded.status, payload_json=excluded.payload_json, updated_at=CURRENT_TIMESTAMP",
+            (task["task_id"], task["project_id"], task["status"], payload),
+        )
+
+
+def _get_task(task_id: str) -> dict[str, Any] | None:
+    with _api_tasks_lock:
+        cached = _api_tasks.get(task_id)
+    if cached is not None:
+        return cached
+    with _task_db() as connection:
+        row = connection.execute("SELECT task_id, project_id, status, payload_json FROM coding_tasks WHERE task_id=?", (task_id,)).fetchone()
+    if row is None:
+        return None
+    try:
+        payload = json.loads(row["payload_json"])
+        workspace = _resolve_project_workspace(row["project_id"])
+        changes = tuple(
+            FileChangeProposal(
+                relative_path=item["relative_path"],
+                original_content=item.get("original_content"),
+                proposed_content=item["proposed_content"],
+                unified_diff=item["unified_diff"],
+                original_exists=bool(item["original_exists"]),
+            )
+            for item in payload["changes"]
+        )
+        plan = CodingPlan(summary=payload["summary"], changes=changes, rationale=tuple(payload["rationale"]))
+        task = {"task_id": row["task_id"], "project_id": row["project_id"], "workspace": workspace, "plan": plan, "status": row["status"], "error": payload.get("error")}
+    except (KeyError, TypeError, ValueError, HTTPException, OSError, json.JSONDecodeError):
+        return None
+    with _api_tasks_lock:
+        _api_tasks[task_id] = task
+    return task
+
 
 
 class PlanTaskRequest(BaseModel):
@@ -290,6 +372,7 @@ def api_create_plan(
     }
     with _api_tasks_lock:
         _api_tasks[task_id] = task
+    _persist_task(task)
     write_audit_event(
         "plan_created", task_id=task_id, project_id=project_id,
         status=task["status"],
@@ -301,8 +384,7 @@ def api_create_plan(
 
 @api.get("/v1/tasks/{task_id}")
 def api_get_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[str, Any]:
-    with _api_tasks_lock:
-        task = _api_tasks.get(task_id)
+    task = _get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task was not found.")
     return _task_json(task)
@@ -310,10 +392,10 @@ def api_get_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[st
 
 @api.post("/v1/tasks/{task_id}/approve")
 def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[str, Any]:
+    task = _get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task was not found.")
     with _api_tasks_lock:
-        task = _api_tasks.get(task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail="Task was not found.")
         if task["status"] != "WAITING_FOR_APPROVAL":
             raise HTTPException(status_code=409, detail="Task is not waiting for approval.")
         plan: CodingPlan = task["plan"]
@@ -328,6 +410,7 @@ def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dic
         except (WorkspaceError, OSError):
             task["status"] = "FAILED"
             task["error"] = "Workspace changed or the approved change could not be applied safely. Re-plan."
+            _persist_task(task)
             write_audit_event(
                 "approval_apply_failed", task_id=task_id, project_id=task["project_id"],
                 status="FAILED",
@@ -335,6 +418,7 @@ def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dic
             )
             raise HTTPException(status_code=409, detail=task["error"]) from None
         task["status"] = "SUCCEEDED"
+        _persist_task(task)
         write_audit_event(
             "approval_applied", task_id=task_id, project_id=task["project_id"],
             status="SUCCEEDED",
@@ -354,6 +438,7 @@ def api_reject_task(task_id: str, _: None = Depends(_require_api_token)) -> dict
         if task["status"] != "WAITING_FOR_APPROVAL":
             raise HTTPException(status_code=409, detail="Task is not waiting for approval.")
         task["status"] = "REJECTED"
+        _persist_task(task)
         write_audit_event(
             "plan_rejected", task_id=task_id, project_id=task["project_id"],
             status="REJECTED",
