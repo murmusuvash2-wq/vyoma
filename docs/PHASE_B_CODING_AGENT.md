@@ -38,7 +38,8 @@ OpenHands Software Agent SDK remains the candidate for the future main coding-ag
 - [x] Unit tests and backend CI passing on the current branch
 - [ ] OpenHands SDK runtime/autonomous loop
 - [ ] Per-user authentication and durable task storage
-- [ ] Android workspace chat/diff UI
+- [x] Initial Android Coding Agent screen wired to plan and explicit single-file approval API
+- [ ] Android task persistence, refresh/status recovery, and richer diff review UI
 - [ ] Transactional edits, rollback and audit history
 - [ ] Isolated build worker and APK delivery
 
