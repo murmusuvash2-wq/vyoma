@@ -35,6 +35,20 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** a real provider request succeeds on a device and invalid credentials fail safely. Source implementation alone does not satisfy this gate.
 
+## M4.1 — Coding-agent foundation (Phase B, first increment)
+- [x] Add restricted task-workspace file listing and UTF-8 source reading
+- [x] Generate reviewable file-change proposals without mutating the workspace
+- [x] Require explicit approval before applying a proposal
+- [x] Reject path traversal and symlink paths; bound file/list sizes and skip build output
+- [x] Detect stale proposals before applying changes
+- [x] Add backend unit tests and a dedicated Python CI workflow
+- [ ] Integrate OpenHands Software Agent SDK runtime and typed tool adapter
+- [ ] Add authenticated task API, project authorization, durable task state and audit records
+- [ ] Connect Android workspace chat and diff review to the backend
+- [ ] Add undo/checkpoint and isolated build-worker execution
+
+**Exit gate:** a coding-agent task proposes a scoped diff, waits for approval, applies safely, and returns verifiable checks. This increment provides the workspace safety boundary only; it is not yet an autonomous agent.
+
 ## M2 — Workspace and durable project memory
 - [ ] Project workspace with chat, preview, files/diff, tests, and activity
 - [ ] Define versioned memory records and provenance
