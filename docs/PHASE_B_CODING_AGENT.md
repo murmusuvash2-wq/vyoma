@@ -43,6 +43,8 @@ The Android Coding Agent screen now discloses that the task prompt and selected 
 - [ ] OpenHands SDK runtime/autonomous loop
 - [ ] Per-user authentication and durable task storage
 - [x] Initial Android Coding Agent screen wired to plan, explicit single-file approval, and plan rejection
+- [x] Android task status refresh control calls the authenticated task lookup endpoint
+- [ ] Restore tasks after backend restart; task state is currently in memory
 - [ ] Android task persistence, refresh/status recovery, and richer diff review UI
 - [ ] Transactional edits, rollback and audit history
 - [ ] Isolated build worker and APK delivery
