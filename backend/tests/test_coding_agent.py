@@ -155,3 +155,40 @@ def test_api_rejects_unknown_project_workspace(tmp_path: Path, monkeypatch):
         headers={"Authorization": "Bearer test-token"},
     )
     assert response.status_code == 404
+
+
+
+def test_api_rejects_plan_without_mutating_workspace(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    project = root / "sample"
+    project.mkdir(parents=True)
+    target = project / "Main.kt"
+    target.write_text("fun main() = Unit\\n", encoding="utf-8")
+    monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", "test-token")
+    monkeypatch.setenv("VYOMA_WORKSPACE_ROOT", str(root))
+    monkeypatch.setenv("VYOMA_AI_ENDPOINT", "https://provider.example/v1/chat/completions")
+    monkeypatch.setenv("VYOMA_AI_MODEL", "test-model")
+    monkeypatch.setenv("VYOMA_AI_API_KEY", "not-a-real-key")
+    model_payload = {"summary": "Update greeting", "changes": [{
+        "path": "Main.kt", "content": 'fun main() = println("hello")\\n',
+        "rationale": "Add a greeting",
+    }]}
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda request, timeout: FakeResponse(provider_envelope(json.dumps(model_payload))),
+    )
+    client = TestClient(coding_agent_module.api)
+    headers = {"Authorization": "Bearer test-token"}
+    planned = client.post(
+        "/v1/projects/sample/tasks/plan",
+        json={"goal": "add greeting"},
+        headers=headers,
+    )
+    assert planned.status_code == 200, planned.text
+    task_id = planned.json()["task_id"]
+    rejected = client.post(f"/v1/tasks/{task_id}/reject", headers=headers)
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "REJECTED"
+    assert target.read_text(encoding="utf-8") == "fun main() = Unit\\n"
+    duplicate = client.post(f"/v1/tasks/{task_id}/reject", headers=headers)
+    assert duplicate.status_code == 409
