@@ -141,7 +141,8 @@ private fun VyomaApp() {
         1 -> "Projects"
         2 -> "Blueprint review"
         3 -> "Preview"
-        else -> "AI connection"
+        4 -> "AI connection"
+        else -> "Coding Agent"
     }
 
     ModalNavigationDrawer(
@@ -261,6 +262,22 @@ private fun VyomaApp() {
                         )
                     )
 
+                    NavigationDrawerItem(
+                        label = { Text("Coding Agent", fontWeight = if (selectedTab == 5) FontWeight.SemiBold else FontWeight.Normal) },
+                        selected = selectedTab == 5,
+                        icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                        onClick = { selectedTab = 5; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Mint,
+                            selectedIconColor = Green,
+                            selectedTextColor = Navy,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Navy
+                        )
+                    )
+
                     Spacer(Modifier.weight(1f))
                     HorizontalDivider(color = Line)
                     Row(
@@ -346,7 +363,8 @@ private fun VyomaApp() {
                 }
             )
             3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
-            else -> AiConnectionSettings(Modifier.padding(insets))
+            4 -> AiConnectionSettings(Modifier.padding(insets))
+            else -> CodingAgentScreen(Modifier.padding(insets))
         }
         }
     }
