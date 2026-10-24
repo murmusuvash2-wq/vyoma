@@ -89,8 +89,36 @@ def _db_path() -> Path:
             status TEXT NOT NULL DEFAULT 'pending',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS audit_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT NOT NULL,
+            proposal_id TEXT,
+            event_type TEXT NOT NULL,
+            relative_path TEXT,
+            details TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
         db.commit()
     return path
+
+
+def _audit(
+    task_id: str,
+    event_type: str,
+    *,
+    proposal_id: str | None = None,
+    relative_path: str | None = None,
+    details: str = "",
+) -> None:
+    """Record a minimal, append-only task event without storing source contents or secrets."""
+    with closing(sqlite3.connect(_db_path())) as db:
+        db.execute(
+            """INSERT INTO audit_events
+            (task_id, proposal_id, event_type, relative_path, details)
+            VALUES (?, ?, ?, ?, ?)""",
+            (task_id, proposal_id, event_type, relative_path, details[:500]),
+        )
+        db.commit()
 
 
 def _save_proposal(task_id: str, proposal: FileChangeProposal) -> str:
@@ -142,6 +170,7 @@ def create_task() -> CreateTaskResponse:
     task_id = str(uuid.uuid4())
     workspace = _root() / task_id
     workspace.mkdir(mode=0o700)
+    _audit(task_id, "task_created", details="Empty task workspace created")
     return CreateTaskResponse(
         task_id=task_id,
         status="ready",
@@ -170,6 +199,13 @@ def create_proposal(task_id: str, request: ProposalRequest) -> ProposalResponse:
     try:
         proposal = propose_file_change(_workspace(task_id), request.path, request.proposed_content)
         proposal_id = _save_proposal(task_id, proposal)
+        _audit(
+            task_id,
+            "proposal_created",
+            proposal_id=proposal_id,
+            relative_path=proposal.relative_path,
+            details="Change proposed; workspace not modified",
+        )
         return ProposalResponse(
             proposal_id=proposal_id, task_id=task_id, path=proposal.relative_path,
             unified_diff=proposal.unified_diff,
@@ -196,6 +232,13 @@ def decide_proposal(task_id: str, proposal_id: str, request: ApprovalRequest) ->
         if not request.approved:
             db.execute("UPDATE proposals SET status='rejected' WHERE proposal_id=?", (proposal_id,))
             db.commit()
+            _audit(
+                task_id,
+                "proposal_rejected",
+                proposal_id=proposal_id,
+                relative_path=relative_path,
+                details="User rejected the proposed change",
+            )
             return {"proposal_id": proposal_id, "status": "rejected"}
         proposal = FileChangeProposal(relative_path, original, proposed, diff, bool(original_exists))
         try:
@@ -203,7 +246,35 @@ def decide_proposal(task_id: str, proposal_id: str, request: ApprovalRequest) ->
         except WorkspaceError as exc:
             db.execute("UPDATE proposals SET status='conflict' WHERE proposal_id=?", (proposal_id,))
             db.commit()
+            _audit(
+                task_id,
+                "proposal_conflict",
+                proposal_id=proposal_id,
+                relative_path=relative_path,
+                details="Apply rejected by workspace safety check",
+            )
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         db.execute("UPDATE proposals SET status='applied' WHERE proposal_id=?", (proposal_id,))
         db.commit()
+    _audit(
+        task_id,
+        "proposal_applied",
+        proposal_id=proposal_id,
+        relative_path=relative_path,
+        details="Approved change applied",
+    )
     return {"proposal_id": proposal_id, "status": "applied"}
+
+
+@app.get("/v1/tasks/{task_id}/audit", dependencies=[Depends(require_token)])
+def get_task_audit(task_id: str) -> dict[str, object]:
+    """Return the minimal chronological audit trail for a task workspace."""
+    _workspace(task_id)
+    with closing(sqlite3.connect(_db_path())) as db:
+        db.row_factory = sqlite3.Row
+        rows = db.execute(
+            """SELECT event_id, proposal_id, event_type, relative_path, details, created_at
+               FROM audit_events WHERE task_id = ? ORDER BY event_id ASC LIMIT 500""",
+            (task_id,),
+        ).fetchall()
+    return {"task_id": task_id, "events": [dict(row) for row in rows]}
