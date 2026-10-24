@@ -145,6 +145,8 @@ def propose_file_change(
         raise WorkspaceError(f"Proposed content exceeds the {MAX_PATCH_BYTES}-byte limit.")
     root = _root_path(workspace_root)
     path = _resolve_inside(root, relative_path, allow_missing=True)
+    if path.suffix.lower() not in _TEXT_SUFFIXES and path.name.lower() not in _TEXT_SUFFIXES:
+        raise WorkspaceError("Only supported text/source file types can be proposed for editing.")
     if path.exists() and not path.is_file():
         raise WorkspaceError("Only regular files can be changed.")
     if path.exists() and path.stat().st_size > MAX_FILE_BYTES:
@@ -181,8 +183,12 @@ def apply_approved_change(
     """Apply a proposal only after explicit approval and a stale-content check."""
     if approved is not True:
         raise WorkspaceError("Explicit user approval is required before applying a change.")
+    if not isinstance(proposal.proposed_content, str) or len(proposal.proposed_content.encode("utf-8")) > MAX_PATCH_BYTES:
+        raise WorkspaceError(f"Proposed content must be text no larger than {MAX_PATCH_BYTES} bytes.")
     root = _root_path(workspace_root)
     path = _resolve_inside(root, proposal.relative_path, allow_missing=True)
+    if path.suffix.lower() not in _TEXT_SUFFIXES and path.name.lower() not in _TEXT_SUFFIXES:
+        raise WorkspaceError("Only supported text/source file types can be changed.")
     current_exists = path.exists()
     if current_exists != proposal.original_exists:
         raise WorkspaceError("Workspace changed after proposal; create a fresh proposal.")
