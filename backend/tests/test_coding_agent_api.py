@@ -16,6 +16,7 @@ def configure(monkeypatch, tmp_path: Path) -> tuple[str, Path]:
     (project / "Main.kt").write_text("fun main() = Unit\n", encoding="utf-8")
     monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", token)
     monkeypatch.setenv("VYOMA_WORKSPACE_ROOT", str(root))
+    monkeypatch.setenv("VYOMA_TASK_DB_PATH", str(tmp_path / "coding_tasks.sqlite3"))
     monkeypatch.setenv("VYOMA_AI_ENDPOINT", "https://provider.example/v1/chat/completions")
     monkeypatch.setenv("VYOMA_AI_MODEL", "test-model")
     monkeypatch.setenv("VYOMA_AI_API_KEY", "not-a-real-key")
@@ -138,3 +139,30 @@ def test_model_output_cannot_escape_project_root(monkeypatch, tmp_path: Path):
     approved = client.post(f"/v1/tasks/{task_id}/approve", headers=headers)
     assert approved.status_code == 409
     assert outside.read_text(encoding="utf-8") == "keep"
+
+
+def test_reject_restores_task_from_sqlite_after_cache_loss(monkeypatch, tmp_path: Path):
+    token, project = configure(monkeypatch, tmp_path)
+    proposal = propose_file_change(project, "Main.kt", 'fun main() = println("should not apply")\\n')
+    plan = coding_agent.CodingPlan(
+        summary="Persisted rejection candidate",
+        changes=(proposal,),
+        rationale=("Verify persisted task recovery",),
+    )
+    monkeypatch.setattr(coding_agent, "plan_code_changes", lambda *args, **kwargs: plan)
+    headers = {"Authorization": f"Bearer {token}"}
+    created = client.post(
+        "/v1/projects/sample/tasks/plan",
+        headers=headers,
+        json={"goal": "Prepare a change then reject it"},
+    )
+    assert created.status_code == 200
+    task_id = created.json()["task_id"]
+
+    # Simulate a backend process restart: the SQLite row remains but the in-memory cache is gone.
+    coding_agent._api_tasks.pop(task_id, None)
+    rejected = client.post(f"/v1/tasks/{task_id}/reject", headers=headers)
+
+    assert rejected.status_code == 200
+    assert rejected.json()["status"] == "REJECTED"
+    assert (project / "Main.kt").read_text(encoding="utf-8") == "fun main() = Unit\\n"
