@@ -78,3 +78,62 @@ def test_unknown_task_is_not_created_from_client_path(tmp_path: Path, monkeypatc
     headers = {"Authorization": f"Bearer {token}"}
     response = client.get("/v1/tasks/not-a-uuid/files", headers=headers)
     assert response.status_code == 404
+
+
+
+def test_audit_trail_records_proposed_rejected_and_applied_changes(tmp_path: Path, monkeypatch) -> None:
+    token = setup_env(tmp_path, monkeypatch)
+    headers = {"Authorization": f"Bearer {token}"}
+    task_id = client.post("/v1/tasks", headers=headers).json()["task_id"]
+
+    rejected_proposal = client.post(
+        f"/v1/tasks/{task_id}/proposals",
+        headers=headers,
+        json={"path": "src/Rejected.kt", "proposed_content": "package src\\n"},
+    )
+    assert rejected_proposal.status_code == 200
+    rejected_id = rejected_proposal.json()["proposal_id"]
+    rejected = client.post(
+        f"/v1/tasks/{task_id}/proposals/{rejected_id}/decision",
+        headers=headers,
+        json={"approved": False},
+    )
+    assert rejected.status_code == 200
+
+    approved_proposal = client.post(
+        f"/v1/tasks/{task_id}/proposals",
+        headers=headers,
+        json={"path": "src/Accepted.kt", "proposed_content": "package src\\n"},
+    )
+    assert approved_proposal.status_code == 200
+    approved_id = approved_proposal.json()["proposal_id"]
+    applied = client.post(
+        f"/v1/tasks/{task_id}/proposals/{approved_id}/decision",
+        headers=headers,
+        json={"approved": True},
+    )
+    assert applied.status_code == 200
+
+    audit = client.get(f"/v1/tasks/{task_id}/audit", headers=headers)
+    assert audit.status_code == 200
+    events = audit.json()["events"]
+    event_types = [event["event_type"] for event in events]
+    assert event_types == [
+        "task_created",
+        "proposal_created",
+        "proposal_rejected",
+        "proposal_created",
+        "proposal_applied",
+    ]
+    assert all("proposed_content" not in event for event in events)
+    assert events[1]["proposal_id"] == rejected_id
+    assert events[-1]["proposal_id"] == approved_id
+
+
+def test_audit_endpoint_rejects_unknown_task(tmp_path: Path, monkeypatch) -> None:
+    token = setup_env(tmp_path, monkeypatch)
+    response = client.get(
+        "/v1/tasks/00000000-0000-0000-0000-000000000000/audit",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
