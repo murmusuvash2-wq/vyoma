@@ -192,3 +192,48 @@ def test_api_rejects_plan_without_mutating_workspace(tmp_path: Path, monkeypatch
     assert target.read_text(encoding="utf-8") == "fun main() = Unit\\n"
     duplicate = client.post(f"/v1/tasks/{task_id}/reject", headers=headers)
     assert duplicate.status_code == 409
+
+
+def test_api_refuses_multi_file_apply_without_mutating_any_file(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    project = root / "sample"
+    project.mkdir(parents=True)
+    first = project / "Main.kt"
+    second = project / "Settings.kt"
+    first.write_text("fun main() = Unit\\n", encoding="utf-8")
+    second.write_text("object Settings\\n", encoding="utf-8")
+
+    monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", "test-token")
+    monkeypatch.setenv("VYOMA_WORKSPACE_ROOT", str(root))
+    monkeypatch.setenv("VYOMA_AI_ENDPOINT", "https://provider.example/v1/chat/completions")
+    monkeypatch.setenv("VYOMA_AI_MODEL", "test-model")
+    monkeypatch.setenv("VYOMA_AI_API_KEY", "fake-test-key")
+    coding_agent_module._api_tasks.clear()
+
+    model_payload = {"summary": "Change two files", "changes": [
+        {"path": "Main.kt", "content": "fun main() = println(1)\\n", "rationale": "Update main"},
+        {"path": "Settings.kt", "content": "object Settings { val enabled = true }\\n", "rationale": "Add setting"},
+    ]}
+    envelope = provider_envelope(json.dumps(model_payload))
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda request, timeout: FakeResponse(envelope),
+    )
+    client = TestClient(coding_agent_module.api)
+    headers = {"Authorization": "Bearer test-token"}
+    planned = client.post(
+        "/v1/projects/sample/tasks/plan",
+        json={"goal": "change both files"},
+        headers=headers,
+    )
+    assert planned.status_code == 200, planned.text
+    task = planned.json()
+    assert len(task["changes"]) == 2
+    assert first.read_text(encoding="utf-8") == "fun main() = Unit\\n"
+    assert second.read_text(encoding="utf-8") == "object Settings\\n"
+
+    approved = client.post(f"/v1/tasks/{task['task_id']}/approve", headers=headers)
+    assert approved.status_code == 409
+    assert "one-file plans" in approved.json()["detail"]
+    assert first.read_text(encoding="utf-8") == "fun main() = Unit\\n"
+    assert second.read_text(encoding="utf-8") == "object Settings\\n"
