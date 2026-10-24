@@ -471,3 +471,44 @@ def api_reject_task(task_id: str, _: None = Depends(_require_api_token)) -> dict
             paths=[change.relative_path for change in task["plan"].changes],
         )
         return _task_json(task)
+
+
+class CreateProjectRequest(BaseModel):
+    project_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+@api.post("/v1/projects")
+def api_create_project(
+    body: CreateProjectRequest,
+    _: None = Depends(_require_api_token),
+) -> dict[str, str]:
+    """Create an empty server-managed workspace for a new coding project."""
+    configured = os.environ.get("VYOMA_WORKSPACE_ROOT", "").strip()
+    if not configured:
+        raise HTTPException(status_code=503, detail="Workspace root is not configured.")
+    root = Path(configured).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    if not root.is_dir():
+        raise HTTPException(status_code=503, detail="Workspace root is not a directory.")
+    project = (root / body.project_id).resolve()
+    try:
+        project.relative_to(root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID.") from None
+    try:
+        project.mkdir(mode=0o700, parents=False, exist_ok=False)
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="A project with this ID already exists.") from None
+    except OSError:
+        raise HTTPException(status_code=500, detail="Could not create project workspace.") from None
+    write_audit_event(
+        "project_workspace_created",
+        project_id=body.project_id,
+        status="READY",
+        details={"workspace_kind": "empty"},
+    )
+    return {
+        "project_id": body.project_id,
+        "status": "READY",
+        "message": "Empty project workspace created. No source code or build files have been generated yet.",
+    }
