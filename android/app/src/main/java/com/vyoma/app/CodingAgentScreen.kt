@@ -163,6 +163,22 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     Text("Status: ${current.status}", color = Green, fontWeight = FontWeight.SemiBold)
                     Text(current.summary, color = Navy)
                     Text("Task ID: ${current.taskId}", color = Muted, fontSize = 11.sp)
+                    OutlinedButton(
+                        onClick = {
+                            error = null
+                            busy = true
+                            scope.launch {
+                                try {
+                                    task = CodingAgentApiClient.refresh(backendUrl, bearerToken, current.taskId)
+                                } catch (t: Throwable) {
+                                    error = t.message ?: "Could not refresh this task."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        },
+                        enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank()
+                    ) { Text("Refresh task status") }
                     if (current.changes.isEmpty()) {
                         Text("No file changes were proposed. Refine the goal and try again.", color = Muted)
                     }
