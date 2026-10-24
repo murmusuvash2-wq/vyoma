@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import difflib
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -172,6 +173,107 @@ def propose_file_change(
         unified_diff=diff,
         original_exists=original is not None,
     )
+
+
+
+def apply_approved_changes(
+    workspace_root: str | Path,
+    proposals: list[FileChangeProposal] | tuple[FileChangeProposal, ...],
+    *,
+    approved: bool,
+) -> None:
+    """Apply a reviewed multi-file change set with preflight checks and rollback on failure.
+
+    All paths and original contents are validated before the first replacement. Staged
+    files are created beside their targets so os.replace stays on the same filesystem.
+    If a replacement fails, already replaced files are restored from their saved originals.
+    """
+    if approved is not True:
+        raise WorkspaceError("Explicit user approval is required before applying changes.")
+    if not proposals:
+        raise WorkspaceError("At least one proposed change is required.")
+    root = _root_path(workspace_root)
+    prepared: list[tuple[FileChangeProposal, Path, str | None]] = []
+    seen: set[str] = set()
+
+    for proposal in proposals:
+        normalized = Path(proposal.relative_path).as_posix()
+        if normalized in seen:
+            raise WorkspaceError("A change set cannot contain duplicate paths.")
+        seen.add(normalized)
+        if not isinstance(proposal.proposed_content, str) or len(proposal.proposed_content.encode("utf-8")) > MAX_PATCH_BYTES:
+            raise WorkspaceError(f"Proposed content must be text no larger than {MAX_PATCH_BYTES} bytes.")
+        path = _resolve_inside(root, proposal.relative_path, allow_missing=True)
+        if path.suffix.lower() not in _TEXT_SUFFIXES and path.name.lower() not in _TEXT_SUFFIXES:
+            raise WorkspaceError("Only supported text/source files can be changed.")
+        exists = path.exists()
+        if exists != proposal.original_exists:
+            raise WorkspaceError("Workspace changed after proposal; create a fresh proposal.")
+        current: str | None = None
+        if exists:
+            if not path.is_file():
+                raise WorkspaceError("Only regular files can be changed.")
+            if path.stat().st_size > MAX_FILE_BYTES:
+                raise WorkspaceError(f"Existing file exceeds the {MAX_FILE_BYTES}-byte change limit.")
+            try:
+                current = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError as exc:
+                raise WorkspaceError("Target file is no longer valid UTF-8 text.") from exc
+            if current != proposal.original_content:
+                raise WorkspaceError("Workspace changed after proposal; create a fresh proposal.")
+        prepared.append((proposal, path, current))
+
+    staged: list[tuple[Path, Path, str | None]] = []
+    replaced: list[tuple[Path, str | None]] = []
+    try:
+        for proposal, path, original in prepared:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # Re-resolve after creating parents to reject symlinked paths.
+            path = _resolve_inside(root, proposal.relative_path, allow_missing=True)
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", newline="", delete=False,
+                dir=path.parent, prefix=".vyoma-stage-",
+            ) as handle:
+                handle.write(proposal.proposed_content)
+                handle.flush()
+                os.fsync(handle.fileno())
+                staged.append((Path(handle.name), path, original))
+
+        # Last-moment stale-content check before any target is replaced.
+        for proposal, path, original in prepared:
+            current_exists = path.exists()
+            if current_exists != proposal.original_exists:
+                raise WorkspaceError("Workspace changed after proposal; create a fresh proposal.")
+            if current_exists and path.read_text(encoding="utf-8") != original:
+                raise WorkspaceError("Workspace changed after proposal; create a fresh proposal.")
+
+        for temporary, target, original in staged:
+            os.replace(temporary, target)
+            replaced.append((target, original))
+    except Exception as exc:
+        for target, original in reversed(replaced):
+            try:
+                if original is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", encoding="utf-8", newline="", delete=False,
+                        dir=target.parent, prefix=".vyoma-rollback-",
+                    ) as handle:
+                        handle.write(original)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                        rollback_path = Path(handle.name)
+                    os.replace(rollback_path, target)
+            except OSError:
+                # Surface a clear failure; the worker should be discarded if rollback fails.
+                pass
+        if isinstance(exc, WorkspaceError):
+            raise
+        raise WorkspaceError("Could not apply the complete change set; rollback was attempted.") from None
+    finally:
+        for temporary, _, _ in staged:
+            temporary.unlink(missing_ok=True)
 
 
 def apply_approved_change(
