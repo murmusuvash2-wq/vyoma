@@ -342,3 +342,21 @@ def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dic
             details={"change_count": len(plan.changes)},
         )
         return _task_json(task)
+
+
+@api.post("/v1/tasks/{task_id}/reject")
+def api_reject_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[str, Any]:
+    """Reject a pending plan without mutating the workspace."""
+    with _api_tasks_lock:
+        task = _api_tasks.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task was not found.")
+        if task["status"] != "WAITING_FOR_APPROVAL":
+            raise HTTPException(status_code=409, detail="Task is not waiting for approval.")
+        task["status"] = "REJECTED"
+        write_audit_event(
+            "plan_rejected", task_id=task_id, project_id=task["project_id"],
+            status="REJECTED",
+            paths=[change.relative_path for change in task["plan"].changes],
+        )
+        return _task_json(task)
