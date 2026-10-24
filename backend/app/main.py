@@ -152,10 +152,16 @@ def approve_task(task_id: str, _: None = Depends(_authorize)) -> TaskResponse:
             raise HTTPException(status_code=404, detail="Task was not found.")
         if task.status != "WAITING_FOR_APPROVAL":
             raise HTTPException(status_code=409, detail="Task is not waiting for approval.")
+        # Refuse multi-file plans until applying them can be transactional.
+        # Otherwise a later failure could leave a partially modified workspace.
+        if len(task.changes) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail="This development API only applies one-file plans. Review and split the task.",
+            )
         workspace = _project_root(task.project_id)
         try:
-            for proposal in task.changes:
-                apply_approved_change(workspace, proposal, approved=True)
+            apply_approved_change(workspace, task.changes[0], approved=True)
         except (WorkspaceError, OSError):
             task.status = "FAILED"
             task.error = "Could not apply approved changes safely. Re-plan the task."
