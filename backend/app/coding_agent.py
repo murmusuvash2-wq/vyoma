@@ -199,23 +199,21 @@ _PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _api_tasks_lock = threading.Lock()
 _api_tasks: dict[str, dict[str, Any]] = {}
 
-_TASK_DB_PATH = Path(os.environ.get(
-    "VYOMA_TASK_DB_PATH",
-    str(Path(__file__).resolve().parents[1] / ".data" / "coding_tasks.sqlite3"),
-)).expanduser()
-
-
 def _task_db() -> sqlite3.Connection:
-    _TASK_DB_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    db_path = Path(os.environ.get(
+        "VYOMA_TASK_DB_PATH",
+        str(Path(__file__).resolve().parents[1] / ".data" / "coding_tasks.sqlite3"),
+    )).expanduser()
+    db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
-        os.chmod(_TASK_DB_PATH.parent, 0o700)
+        os.chmod(db_path.parent, 0o700)
     except OSError:
         pass
-    connection = sqlite3.connect(_TASK_DB_PATH, timeout=10)
+    connection = sqlite3.connect(db_path, timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("CREATE TABLE IF NOT EXISTS coding_tasks (task_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
     try:
-        os.chmod(_TASK_DB_PATH, 0o600)
+        os.chmod(db_path, 0o600)
     except OSError:
         pass
     return connection
