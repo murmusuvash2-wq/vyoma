@@ -40,6 +40,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
     var bearerToken by remember { mutableStateOf(savedConnection.bearerToken) }
     var projectId by remember { mutableStateOf(savedConnection.projectId) }
     var goal by remember { mutableStateOf("") }
+    var useOpenHands by remember { mutableStateOf(true) }
     var consentToSendSource by remember { mutableStateOf(false) }
     var task by remember { mutableStateOf<CodingAgentTask?>(null) }
     var taskIdInput by remember { mutableStateOf(taskPrefs.getString("last_task_id", "") ?: "") }
@@ -142,6 +143,24 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     minLines = 3
                 )
                 Surface(
+                    color = androidx.compose.ui.graphics.Color(0xFFE7F6EC),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(10.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = useOpenHands, onCheckedChange = { useOpenHands = it })
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Use OpenHands SDK", color = Navy, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Runs in a disposable copy with file-edit tools only; no shell or tests. Backend must have OpenHands dependencies and credentials configured.",
+                                color = Muted, fontSize = 12.sp, lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+                Surface(
                     color = androidx.compose.ui.graphics.Color(0xFFFFF4DB),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                 ) {
@@ -172,7 +191,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                         busy = true
                         scope.launch {
                             try {
-                                val planned = CodingAgentApiClient.plan(backendUrl, bearerToken, projectId, goal)
+                                val planned = CodingAgentApiClient.plan(backendUrl, bearerToken, projectId, goal, if (useOpenHands) "openhands" else "planner")
                                 task = planned
                                 taskIdInput = planned.taskId
                                 taskPrefs.edit().putString("last_task_id", planned.taskId).apply()
