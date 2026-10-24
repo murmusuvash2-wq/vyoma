@@ -45,6 +45,24 @@ internal object CodingAgentApiClient {
         )
     }
 
+    suspend fun createProject(
+        backendUrl: String,
+        bearerToken: String,
+        projectId: String
+    ): String {
+        require(projectId.matches(Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"))) {
+            "Project ID may contain only letters, numbers, underscores and hyphens."
+        }
+        val created = request(
+            backendUrl = backendUrl,
+            bearerToken = bearerToken,
+            path = "/v1/projects",
+            method = "POST",
+            body = JSONObject().put("project_id", projectId.trim())
+        )
+        return created.projectId
+    }
+
     suspend fun refresh(
         backendUrl: String,
         bearerToken: String,
