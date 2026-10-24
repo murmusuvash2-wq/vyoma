@@ -4,7 +4,8 @@
 - Restricted task-workspace file listing and UTF-8 source reading.
 - Provider-backed planner sends bounded project context to an HTTPS OpenAI-compatible chat-completions endpoint and expects structured JSON.
 - Model output becomes a reviewable file-change proposal and unified diff; planning itself never mutates source files.
-- Development FastAPI endpoints provide plan creation, task lookup, and explicit approval.
+- Development FastAPI endpoints provide plan creation, task lookup, explicit approval, and rejection.
+- Task status and full reviewable proposals are stored in a local SQLite database so tasks can be recovered after backend restart; the database path is configurable with `VYOMA_TASK_DB_PATH`.
 - API uses a configured server-side bearer token and validates project IDs under a configured workspace root; clients cannot supply arbitrary filesystem paths.
 - Applying a proposal checks the original content for staleness. The API currently applies one-file proposals only because multi-file transactional writes/checkpoints are not implemented.
 - Unit tests use a mocked provider; no real AI key is required for CI.
@@ -44,7 +45,7 @@ The Android Coding Agent screen now discloses that the task prompt and selected 
 - [ ] Per-user authentication and durable task storage
 - [x] Initial Android Coding Agent screen wired to plan, explicit single-file approval, and plan rejection
 - [x] Android task status refresh control calls the authenticated task lookup endpoint
-- [ ] Restore tasks after backend restart; task state is currently in memory
+- [x] Restore task state and proposals after backend restart using local SQLite (single-node development only; no multi-user tenancy or distributed locking)
 - [ ] Android task persistence, refresh/status recovery, and richer diff review UI
 - [ ] Transactional edits, rollback and audit history
 - [ ] Isolated build worker and APK delivery
