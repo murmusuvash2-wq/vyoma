@@ -92,3 +92,17 @@ This is a development audit trail, not a tamper-proof compliance log. The API st
 - [ ] Replace the shared development token with per-user identity and project ownership before public deployment.
 
 Creating a workspace only creates an empty directory. It does not generate source files, import a GitHub repository, or build an APK.
+
+
+## Next target — isolated workspace and importable project source
+
+Before enabling build/test execution or treating this as production-ready:
+- [ ] Add a supported project import path (start with a bounded ZIP upload from the Android device).
+- [ ] Reject ZIP traversal paths, symlink entries, duplicate paths, oversized archives, too many files, and protected secrets/signing files.
+- [ ] Run OpenHands in a disposable container/Agent Server workspace, not merely a temporary directory.
+- [ ] Enforce CPU/memory/time/disk limits and default-deny network egress.
+- [ ] Add task cancellation and workspace expiry/cleanup.
+- [ ] Run build/test commands only inside the isolated worker and capture redacted logs.
+- [ ] Return a revision-bound diff and actual pass/fail/not-run checks to the Android review UI.
+
+The new regression tests also verify that protected .env files never appear in returned OpenHands proposals and oversized task prompts are rejected before the SDK is started.
