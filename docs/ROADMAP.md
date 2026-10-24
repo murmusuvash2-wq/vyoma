@@ -43,7 +43,7 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] Detect stale proposals before applying changes
 - [x] Add backend unit tests and a dedicated Python CI workflow
 - [x] Add explicit plan rejection path that leaves workspace unchanged\n- [ ] Integrate OpenHands Software Agent SDK runtime and typed tool adapter
-- [ ] Add authenticated task API, project authorization, durable task state and audit records
+- [x] Add development bearer-token task API and local SQLite task persistence; [ ] add per-user authorization, quotas and production audit database
 - [ ] Connect Android workspace chat and diff review to the backend
 - [ ] Add undo/checkpoint and isolated build-worker execution
 
