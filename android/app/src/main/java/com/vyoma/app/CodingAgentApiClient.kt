@@ -51,6 +51,18 @@ internal object CodingAgentApiClient {
         body = JSONObject()
     )
 
+    suspend fun reject(
+        backendUrl: String,
+        bearerToken: String,
+        taskId: String
+    ): CodingAgentTask = request(
+        backendUrl = backendUrl,
+        bearerToken = bearerToken,
+        path = "/v1/tasks/${taskId.trim()}/reject",
+        method = "POST",
+        body = JSONObject()
+    )
+
     private suspend fun request(
         backendUrl: String,
         bearerToken: String,
