@@ -240,3 +240,36 @@ def test_api_refuses_multi_file_apply_without_mutating_any_file(tmp_path: Path, 
     assert "one-file plans" in approved.json()["detail"]
     assert first.read_text(encoding="utf-8") == "fun main() = Unit\\n"
     assert second.read_text(encoding="utf-8") == "object Settings\\n"
+
+
+def test_api_openhands_engine_returns_reviewable_plan_without_mutation(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    project = root / "sample"
+    project.mkdir(parents=True)
+    target = project / "Main.kt"
+    target.write_text("fun main() = Unit\\n", encoding="utf-8")
+    monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", "test-token")
+    monkeypatch.setenv("VYOMA_WORKSPACE_ROOT", str(root))
+    monkeypatch.setenv("VYOMA_OPENHANDS_MODEL", "test-openhands-model")
+    monkeypatch.setenv("VYOMA_OPENHANDS_API_KEY", "fake-test-key")
+    coding_agent_module._api_tasks.clear()
+
+    from app.agent_workspace import propose_file_change
+
+    def fake_openhands(workspace, goal, *, model=None, api_key=None, base_url=None, max_iterations=12, sdk_factory=None):
+        assert model == "test-openhands-model"
+        proposal = propose_file_change(workspace, "Main.kt", 'fun main() = println("openhands")\\n')
+        return "OpenHands test summary", (proposal,)
+
+    monkeypatch.setattr(coding_agent_module, "run_openhands_plan", fake_openhands)
+    client = TestClient(coding_agent_module.api)
+    planned = client.post(
+        "/v1/projects/sample/tasks/plan",
+        json={"goal": "Add greeting", "engine": "openhands"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert planned.status_code == 200, planned.text
+    body = planned.json()
+    assert body["status"] == "WAITING_FOR_APPROVAL"
+    assert "openhands" in body["changes"][0]["diff"]
+    assert target.read_text(encoding="utf-8") == "fun main() = Unit\\n"
