@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -32,12 +33,15 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val taskPrefs = remember(context) { context.getSharedPreferences("vyoma_coding_agent_v1", android.content.Context.MODE_PRIVATE) }
     var backendUrl by remember { mutableStateOf("") }
     var bearerToken by remember { mutableStateOf("") }
     var projectId by remember { mutableStateOf("sample") }
     var goal by remember { mutableStateOf("") }
     var consentToSendSource by remember { mutableStateOf(false) }
     var task by remember { mutableStateOf<CodingAgentTask?>(null) }
+    var taskIdInput by remember { mutableStateOf(taskPrefs.getString("last_task_id", "") ?: "") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -82,6 +86,41 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     singleLine = true
                 )
                 OutlinedTextField(
+                    value = taskIdInput,
+                    onValueChange = { taskIdInput = it; error = null },
+                    label = { Text("Task ID (saved on this device)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedButton(
+                    onClick = {
+                        error = null
+                        busy = true
+                        scope.launch {
+                            try {
+                                val refreshed = CodingAgentApiClient.refresh(backendUrl, bearerToken, taskIdInput)
+                                task = refreshed
+                                taskIdInput = refreshed.taskId
+                                taskPrefs.edit().putString("last_task_id", refreshed.taskId).apply()
+                            } catch (t: Throwable) {
+                                error = t.message ?: "Could not load this task."
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                    enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank() && taskIdInput.isNotBlank()
+                ) { Text("Load / refresh saved task") }
+                OutlinedButton(
+                    onClick = {
+                        task = null
+                        taskIdInput = ""
+                        taskPrefs.edit().remove("last_task_id").apply()
+                        error = null
+                    },
+                    enabled = !busy && taskIdInput.isNotBlank()
+                ) { Text("Clear saved task ID") }
+                OutlinedTextField(
                     value = goal,
                     onValueChange = { goal = it; error = null },
                     label = { Text("What should Vyoma change?") },
@@ -120,7 +159,10 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                         busy = true
                         scope.launch {
                             try {
-                                task = CodingAgentApiClient.plan(backendUrl, bearerToken, projectId, goal)
+                                val planned = CodingAgentApiClient.plan(backendUrl, bearerToken, projectId, goal)
+                                task = planned
+                                taskIdInput = planned.taskId
+                                taskPrefs.edit().putString("last_task_id", planned.taskId).apply()
                             } catch (t: Throwable) {
                                 error = t.message ?: "Could not create a coding plan."
                             } finally {
@@ -212,7 +254,10 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                                 busy = true
                                 scope.launch {
                                     try {
-                                        task = CodingAgentApiClient.approve(backendUrl, bearerToken, current.taskId)
+                                        val updated = CodingAgentApiClient.approve(backendUrl, bearerToken, current.taskId)
+                                        task = updated
+                                        taskIdInput = updated.taskId
+                                        taskPrefs.edit().putString("last_task_id", updated.taskId).apply()
                                     } catch (t: Throwable) {
                                         error = t.message ?: "Could not apply the approved change."
                                     } finally {
@@ -229,7 +274,10 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                                 busy = true
                                 scope.launch {
                                     try {
-                                        task = CodingAgentApiClient.reject(backendUrl, bearerToken, current.taskId)
+                                        val updated = CodingAgentApiClient.reject(backendUrl, bearerToken, current.taskId)
+                                        task = updated
+                                        taskIdInput = updated.taskId
+                                        taskPrefs.edit().putString("last_task_id", updated.taskId).apply()
                                     } catch (t: Throwable) {
                                         error = t.message ?: "Could not reject the plan."
                                     } finally {
