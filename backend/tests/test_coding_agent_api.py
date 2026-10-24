@@ -143,7 +143,7 @@ def test_model_output_cannot_escape_project_root(monkeypatch, tmp_path: Path):
 
 def test_reject_restores_task_from_sqlite_after_cache_loss(monkeypatch, tmp_path: Path):
     token, project = configure(monkeypatch, tmp_path)
-    proposal = propose_file_change(project, "Main.kt", 'fun main() = println("should not apply")\\n')
+    proposal = propose_file_change(project, "Main.kt", 'fun main() = println("should not apply")\n')
     plan = coding_agent.CodingPlan(
         summary="Persisted rejection candidate",
         changes=(proposal,),
@@ -165,4 +165,4 @@ def test_reject_restores_task_from_sqlite_after_cache_loss(monkeypatch, tmp_path
 
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "REJECTED"
-    assert (project / "Main.kt").read_text(encoding="utf-8") == "fun main() = Unit\\n"
+    assert (project / "Main.kt").read_text(encoding="utf-8") == "fun main() = Unit\n"
