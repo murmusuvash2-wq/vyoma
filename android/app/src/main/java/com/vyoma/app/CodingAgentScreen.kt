@@ -99,6 +99,41 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                OutlinedButton(
+                    onClick = {
+                        error = null
+                        busy = true
+                        scope.launch {
+                            try {
+                                val createdId = CodingAgentApiClient.createProject(
+                                    backendUrl, bearerToken, projectId
+                                )
+                                projectId = createdId
+                                CodingAgentConnectionStore.save(context, backendUrl, createdId, bearerToken)
+                                error = null
+                                task = CodingAgentTask(
+                                    taskId = "",
+                                    projectId = createdId,
+                                    status = "READY",
+                                    summary = "Empty project workspace created. Add or import source files on the backend before asking the coding agent to edit them.",
+                                    changes = emptyList()
+                                )
+                            } catch (t: Throwable) {
+                                error = t.message ?: "Could not create the project workspace."
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                    enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank() && projectId.isNotBlank()
+                ) {
+                    if (busy) CircularProgressIndicator(strokeWidth = 2.dp) else Text("Create project workspace")
+                }
+                Text(
+                    "Creates an empty workspace on the configured backend. It does not generate an app or upload local files.",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
                 OutlinedTextField(
                     value = taskIdInput,
                     onValueChange = { taskIdInput = it; error = null },
