@@ -191,6 +191,7 @@ import uuid
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from app.agent_workspace import apply_approved_change
+from app.audit import write_audit_event
 
 api = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
 _PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -274,6 +275,10 @@ def api_create_plan(
     try:
         plan = plan_code_changes(workspace, body.goal, endpoint=endpoint, model=model, api_key=key)
     except CodingAgentError as exc:
+        write_audit_event(
+            "plan_failed", project_id=project_id, status="FAILED",
+            details={"error_type": type(exc).__name__},
+        )
         raise HTTPException(status_code=502, detail=str(exc)) from None
     task_id = str(uuid.uuid4())
     task = {
@@ -285,6 +290,12 @@ def api_create_plan(
     }
     with _api_tasks_lock:
         _api_tasks[task_id] = task
+    write_audit_event(
+        "plan_created", task_id=task_id, project_id=project_id,
+        status=task["status"],
+        paths=[change.relative_path for change in plan.changes],
+        details={"change_count": len(plan.changes), "model": model},
+    )
     return _task_json(task)
 
 
@@ -317,6 +328,17 @@ def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dic
         except (WorkspaceError, OSError):
             task["status"] = "FAILED"
             task["error"] = "Workspace changed or the approved change could not be applied safely. Re-plan."
+            write_audit_event(
+                "approval_apply_failed", task_id=task_id, project_id=task["project_id"],
+                status="FAILED",
+                paths=[change.relative_path for change in plan.changes],
+            )
             raise HTTPException(status_code=409, detail=task["error"]) from None
         task["status"] = "SUCCEEDED"
+        write_audit_event(
+            "approval_applied", task_id=task_id, project_id=task["project_id"],
+            status="SUCCEEDED",
+            paths=[change.relative_path for change in plan.changes],
+            details={"change_count": len(plan.changes)},
+        )
         return _task_json(task)
