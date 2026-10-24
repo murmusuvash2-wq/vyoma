@@ -12,6 +12,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -35,6 +36,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
     var bearerToken by remember { mutableStateOf("") }
     var projectId by remember { mutableStateOf("sample") }
     var goal by remember { mutableStateOf("") }
+    var consentToSendSource by remember { mutableStateOf(false) }
     var task by remember { mutableStateOf<CodingAgentTask?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -87,6 +89,30 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
+                Surface(
+                    color = androidx.compose.ui.graphics.Color(0xFFFFF4DB),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text("Privacy before planning", color = androidx.compose.ui.graphics.Color(0xFF754B00), fontWeight = FontWeight.Bold)
+                        Text(
+                            "When you create a plan, Vyoma sends the task description and selected workspace source-file contents to the AI provider configured on your backend. Do not use private or sensitive projects in this development build.",
+                            color = androidx.compose.ui.graphics.Color(0xFF754B00),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = consentToSendSource,
+                                onCheckedChange = { consentToSendSource = it }
+                            )
+                            Text("I understand and allow source files to be sent for AI planning.", color = Navy, fontSize = 12.sp)
+                        }
+                    }
+                }
                 Button(
                     onClick = {
                         error = null
@@ -103,7 +129,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                         }
                     },
                     enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank() &&
-                        projectId.isNotBlank() && goal.isNotBlank(),
+                        projectId.isNotBlank() && goal.isNotBlank() && consentToSendSource,
                     colors = ButtonDefaults.buttonColors(containerColor = Navy)
                 ) {
                     if (busy) CircularProgressIndicator(strokeWidth = 2.dp) else Text("Create plan")
