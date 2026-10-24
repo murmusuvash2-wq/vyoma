@@ -107,3 +107,17 @@ def test_list_files_hides_protected_paths(tmp_path: Path):
     (tmp_path / ".github" / "workflows" / "android.yml").write_text("permissions: write-all", encoding="utf-8")
 
     assert list_files(tmp_path) == ["src/Main.kt"]
+
+
+
+@pytest.mark.parametrize("unsupported_path", ["app/image.png", "release/app.apk", "binary.bin"])
+def test_unsupported_file_types_cannot_be_proposed(tmp_path: Path, unsupported_path: str):
+    with pytest.raises(WorkspaceError, match="supported text/source"):
+        propose_file_change(tmp_path, unsupported_path, "not binary data")
+
+
+def test_oversized_proposal_is_rejected(tmp_path: Path):
+    from app.agent_workspace import MAX_PATCH_BYTES
+
+    with pytest.raises(WorkspaceError, match="exceeds"):
+        propose_file_change(tmp_path, "Main.kt", "x" * (MAX_PATCH_BYTES + 1))
