@@ -8,9 +8,10 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from app.agent_workspace import FileChangeProposal, WorkspaceError, list_files, propose_file_change
 
@@ -199,7 +200,8 @@ _PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _api_tasks_lock = threading.Lock()
 _api_tasks: dict[str, dict[str, Any]] = {}
 
-def _task_db() -> sqlite3.Connection:
+@contextmanager
+def _task_db() -> Iterator[sqlite3.Connection]:
     db_path = Path(os.environ.get(
         "VYOMA_TASK_DB_PATH",
         str(Path(__file__).resolve().parents[1] / ".data" / "coding_tasks.sqlite3"),
@@ -211,12 +213,19 @@ def _task_db() -> sqlite3.Connection:
         pass
     connection = sqlite3.connect(db_path, timeout=10)
     connection.row_factory = sqlite3.Row
-    connection.execute("CREATE TABLE IF NOT EXISTS coding_tasks (task_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
     try:
-        os.chmod(db_path, 0o600)
-    except OSError:
-        pass
-    return connection
+        connection.execute("CREATE TABLE IF NOT EXISTS coding_tasks (task_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, status TEXT NOT NULL, payload_json TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+        try:
+            os.chmod(db_path, 0o600)
+        except OSError:
+            pass
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def _task_payload(task: dict[str, Any]) -> dict[str, Any]:
