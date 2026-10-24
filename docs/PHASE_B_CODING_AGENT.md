@@ -80,3 +80,15 @@ Important: a temporary directory is not a security sandbox. File-edit-only tools
 - [ ] Add per-user identity/ownership, retention policy, tamper-resistant production audit storage, and concurrency/transaction guarantees before deployment.
 
 This is a development audit trail, not a tamper-proof compliance log. The API still uses one shared development bearer token.
+
+
+## Latest increment: project workspace bootstrap
+
+- [x] Add an authenticated `POST /v1/projects` endpoint to create an empty workspace using a validated project ID.
+- [x] Create the project directory with owner-only permissions where supported; reject duplicate IDs and path traversal.
+- [x] Add Android Coding Agent UI action to create the workspace and select its project ID.
+- [x] Add backend tests for authentication, invalid IDs, duplicate IDs and empty workspace creation.
+- [ ] Import or generate a real Android starter project into the workspace.
+- [ ] Replace the shared development token with per-user identity and project ownership before public deployment.
+
+Creating a workspace only creates an empty directory. It does not generate source files, import a GitHub repository, or build an APK.
