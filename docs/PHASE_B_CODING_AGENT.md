@@ -31,14 +31,14 @@ OpenHands Software Agent SDK remains the candidate for the future main coding-ag
 8. Connect Android task UI and diff review to the authenticated API.
 9. Add cloud Gradle builds and APK artifact delivery only after worker isolation and security gates pass.
 
-## Acceptance status
+## Latest increment: reject a plan safely\n- Added an authenticated reject endpoint for plans awaiting approval.\n- Rejection records an audit event and changes task status to REJECTED without applying any file changes.\n- Added a native Reject plan action and a test that verifies workspace contents remain unchanged.\n\n## Acceptance status
 - [x] Workspace safety tools and reviewable diffs
 - [x] Provider-backed planning with response/path validation
 - [x] Authenticated development API for plan/status/approval
 - [x] Unit tests and backend CI passing on the current branch
 - [ ] OpenHands SDK runtime/autonomous loop
 - [ ] Per-user authentication and durable task storage
-- [x] Initial Android Coding Agent screen wired to plan and explicit single-file approval API
+- [x] Initial Android Coding Agent screen wired to plan, explicit single-file approval, and plan rejection
 - [ ] Android task persistence, refresh/status recovery, and richer diff review UI
 - [ ] Transactional edits, rollback and audit history
 - [ ] Isolated build worker and APK delivery
