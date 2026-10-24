@@ -87,7 +87,7 @@ def test_reject_does_not_mutate_workspace(monkeypatch, tmp_path: Path):
     assert (project / "Main.kt").read_text(encoding="utf-8") == "fun main() = Unit\n"
 
 
-def test_multi_file_plan_is_not_partially_applied(monkeypatch, tmp_path: Path):
+def test_multi_file_plan_is_applied_after_single_approval(monkeypatch, tmp_path: Path):
     token, project = configure(monkeypatch, tmp_path)
     first = propose_file_change(project, "Main.kt", "fun main() = println(\"first\")\n")
     second = propose_file_change(project, "New.kt", "fun newFile() = Unit\n")
