@@ -42,6 +42,8 @@ internal object CodingAgentConnectionStore {
             .putString(PROJECT_KEY, projectId.trim())
         if (bearerToken.isNotBlank()) {
             editor.putString(TOKEN_KEY, encrypt(bearerToken.trim()))
+        } else {
+            editor.remove(TOKEN_KEY)
         }
         editor.apply()
     }
