@@ -192,6 +192,7 @@ import threading
 import uuid
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
+from app.openhands_runtime import OpenHandsRuntimeError, run_openhands_plan
 from app.agent_workspace import apply_approved_change
 from app.audit import write_audit_event
 
@@ -291,6 +292,7 @@ def _get_task(task_id: str) -> dict[str, Any] | None:
 class PlanTaskRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=4000)
     model: str | None = Field(default=None, max_length=200)
+    engine: str = Field(default="planner", pattern="^(planner|openhands)$")
 
 
 def _require_api_token(authorization: str | None = Header(default=None)) -> None:
@@ -360,15 +362,30 @@ def api_create_plan(
     _: None = Depends(_require_api_token),
 ) -> dict[str, Any]:
     workspace = _resolve_project_workspace(project_id)
-    endpoint, model, key = _provider_settings(body.model)
-    try:
-        plan = plan_code_changes(workspace, body.goal, endpoint=endpoint, model=model, api_key=key)
-    except CodingAgentError as exc:
-        write_audit_event(
-            "plan_failed", project_id=project_id, status="FAILED",
-            details={"error_type": type(exc).__name__},
-        )
-        raise HTTPException(status_code=502, detail=str(exc)) from None
+    if body.engine == "openhands":
+        model = (body.model or os.environ.get("VYOMA_OPENHANDS_MODEL", "")).strip()
+        try:
+            summary, changes = run_openhands_plan(workspace, body.goal, model=model or None)
+            plan = CodingPlan(summary=summary, changes=changes, rationale=tuple(
+                "Prepared by OpenHands in a disposable copy; review before applying."
+                for _ in changes
+            ))
+        except OpenHandsRuntimeError as exc:
+            write_audit_event(
+                "openhands_plan_failed", project_id=project_id, status="FAILED",
+                details={"error_type": type(exc).__name__},
+            )
+            raise HTTPException(status_code=502, detail=str(exc)) from None
+    else:
+        endpoint, model, key = _provider_settings(body.model)
+        try:
+            plan = plan_code_changes(workspace, body.goal, endpoint=endpoint, model=model, api_key=key)
+        except CodingAgentError as exc:
+            write_audit_event(
+                "plan_failed", project_id=project_id, status="FAILED",
+                details={"error_type": type(exc).__name__},
+            )
+            raise HTTPException(status_code=502, detail=str(exc)) from None
     task_id = str(uuid.uuid4())
     task = {
         "task_id": task_id,
@@ -384,7 +401,7 @@ def api_create_plan(
         "plan_created", task_id=task_id, project_id=project_id,
         status=task["status"],
         paths=[change.relative_path for change in plan.changes],
-        details={"change_count": len(plan.changes), "model": model},
+        details={"change_count": len(plan.changes), "model": model, "engine": body.engine},
     )
     return _task_json(task)
 
