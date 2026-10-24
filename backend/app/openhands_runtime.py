@@ -102,9 +102,12 @@ def run_openhands_plan(
                             Tool(name=FileEditorTool.name),
                             Tool(name=TaskTrackerTool.name),
                         ],
-                        max_iterations=max(1, min(max_iterations, 20)),
                     )
-                    return Conversation(agent=agent, workspace=workspace)
+                    return Conversation(
+                        agent=agent,
+                        workspace=workspace,
+                        max_iteration_per_run=max(1, min(max_iterations, 20)),
+                    )
 
             conversation = sdk_factory(
                 model=resolved_model,
