@@ -31,13 +31,33 @@ internal object CodingAgentApiClient {
         bearerToken: String,
         projectId: String,
         goal: String
-    ): CodingAgentTask = request(
-        backendUrl = backendUrl,
-        bearerToken = bearerToken,
-        path = "/v1/projects/${projectId.trim()}/tasks/plan",
-        method = "POST",
-        body = JSONObject().put("goal", goal.trim())
-    )
+    ): CodingAgentTask {
+        require(projectId.matches(Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"))) {
+            "Project ID may contain only letters, numbers, underscores and hyphens."
+        }
+        return request(
+            backendUrl = backendUrl,
+            bearerToken = bearerToken,
+            path = "/v1/projects/${projectId.trim()}/tasks/plan",
+            method = "POST",
+            body = JSONObject().put("goal", goal.trim())
+        )
+    }
+
+    suspend fun refresh(
+        backendUrl: String,
+        bearerToken: String,
+        taskId: String
+    ): CodingAgentTask {
+        require(taskId.matches(Regex("^[0-9a-fA-F-]{36}$"))) { "Enter a valid task ID." }
+        return request(
+            backendUrl = backendUrl,
+            bearerToken = bearerToken,
+            path = "/v1/tasks/${taskId.trim()}",
+            method = "GET",
+            body = JSONObject()
+        )
+    }
 
     suspend fun approve(
         backendUrl: String,
