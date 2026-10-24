@@ -193,7 +193,7 @@ import uuid
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from app.openhands_runtime import OpenHandsRuntimeError, run_openhands_plan
-from app.agent_workspace import apply_approved_change
+from app.agent_workspace import apply_approved_change, apply_approved_changes
 from app.audit import write_audit_event
 
 api = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
@@ -423,14 +423,8 @@ def api_approve_task(task_id: str, _: None = Depends(_require_api_token)) -> dic
         if task["status"] != "WAITING_FOR_APPROVAL":
             raise HTTPException(status_code=409, detail="Task is not waiting for approval.")
         plan: CodingPlan = task["plan"]
-        # Until transactional multi-file apply/checkpointing exists, refuse it.
-        if len(plan.changes) != 1:
-            raise HTTPException(
-                status_code=409,
-                detail="This development API only applies one-file plans. Review and split the task.",
-            )
         try:
-            apply_approved_change(task["workspace"], plan.changes[0], approved=True)
+            apply_approved_changes(task["workspace"], plan.changes, approved=True)
         except (WorkspaceError, OSError):
             task["status"] = "FAILED"
             task["error"] = "Workspace changed or the approved change could not be applied safely. Re-plan."
