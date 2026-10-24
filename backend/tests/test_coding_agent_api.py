@@ -89,8 +89,8 @@ def test_reject_does_not_mutate_workspace(monkeypatch, tmp_path: Path):
 
 def test_multi_file_plan_is_applied_after_single_approval(monkeypatch, tmp_path: Path):
     token, project = configure(monkeypatch, tmp_path)
-    first = propose_file_change(project, "Main.kt", 'fun main() = println("first")\\n')
-    second = propose_file_change(project, "New.kt", "fun newFile() = Unit\\n")
+    first = propose_file_change(project, "Main.kt", 'fun main() = println("first")\n')
+    second = propose_file_change(project, "New.kt", "fun newFile() = Unit\n")
     monkeypatch.setattr(
         coding_agent,
         "plan_code_changes",
@@ -109,8 +109,8 @@ def test_multi_file_plan_is_applied_after_single_approval(monkeypatch, tmp_path:
     approved = client.post(f"/v1/tasks/{task_id}/approve", headers=headers)
     assert approved.status_code == 200
     assert approved.json()["status"] == "SUCCEEDED"
-    assert (project / "Main.kt").read_text(encoding="utf-8") == 'fun main() = println("first")\\n'
-    assert (project / "New.kt").read_text(encoding="utf-8") == "fun newFile() = Unit\\n"
+    assert (project / "Main.kt").read_text(encoding="utf-8") == 'fun main() = println("first")\n'
+    assert (project / "New.kt").read_text(encoding="utf-8") == "fun newFile() = Unit\n"
 
 
 def test_model_output_cannot_escape_project_root(monkeypatch, tmp_path: Path):
