@@ -133,6 +133,9 @@ def test_api_plan_does_not_write_until_approval(tmp_path: Path, monkeypatch):
     assert "println" in body["changes"][0]["diff"]
     assert target.read_text(encoding="utf-8") == "fun main() = Unit\\n"
 
+    # Simulate a backend process restart: the in-memory cache is empty, so the
+    # task must be reconstructed from the persistent task database.
+    coding_agent_module._api_tasks.clear()
     fetched = client.get(f"/v1/tasks/{body['task_id']}", headers=headers)
     assert fetched.status_code == 200
     assert fetched.json()["task_id"] == body["task_id"]
