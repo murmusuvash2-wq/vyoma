@@ -180,6 +180,23 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                             },
                             enabled = !busy
                         ) { Text("Approve & apply one-file change") }
+
+                        OutlinedButton(
+                            onClick = {
+                                error = null
+                                busy = true
+                                scope.launch {
+                                    try {
+                                        task = CodingAgentApiClient.reject(backendUrl, bearerToken, current.taskId)
+                                    } catch (t: Throwable) {
+                                        error = t.message ?: "Could not reject the plan."
+                                    } finally {
+                                        busy = false
+                                    }
+                                }
+                            },
+                            enabled = !busy
+                        ) { Text("Reject plan") }
                     } else if (current.status == "WAITING_FOR_APPROVAL" && current.changes.size > 1) {
                         Text(
                             "This backend currently refuses multi-file apply. Split the request into smaller tasks.",
@@ -189,6 +206,9 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     }
                     if (current.status == "SUCCEEDED") {
                         Text("Change applied to the backend workspace. Build/test checks have not run yet.", color = Green, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (current.status == "REJECTED") {
+                        Text("Plan rejected. No workspace files were changed.", color = Muted, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
