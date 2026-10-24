@@ -8,6 +8,7 @@ This Python service is a development-only backend for the Android-native Vyoma a
 - Provider-backed planner uses the server-configured OpenAI-compatible chat-completions endpoint and returns proposed diffs; it does not execute shell commands.
 - Android Coding Agent screen calls the API exposed as `app.coding_agent:api`.
 - Bearer-token-gated endpoints create a plan, fetch task status, approve a one-file plan, and reject a plan.
+- Coding task state and reviewable proposal contents are persisted in a local SQLite database, allowing task refresh/review after backend restart. The database directory/file are restricted to owner access where the OS permits.
 - Project directories are selected by a validated project ID under `VYOMA_WORKSPACE_ROOT`; clients cannot submit arbitrary absolute paths.
 - Planning does not mutate files. Approval rechecks the original file content. Multi-file plans are rejected at apply time until transactional checkpoints exist.
 - Audit events are metadata-only and are written only when `VYOMA_AUDIT_LOG_PATH` is configured.
@@ -30,6 +31,7 @@ Set these environment variables in the backend process:
 - `VYOMA_AI_MODEL`: model name supported by the endpoint.
 - `VYOMA_AI_API_KEY`: server-side provider key. Never commit it or put it in the Android app.
 - `VYOMA_AUDIT_LOG_PATH` (optional for local development): path to a protected JSONL metadata audit log.
+- `VYOMA_TASK_DB_PATH` (optional): location for the local SQLite task database. Defaults to `backend/.data/coding_tasks.sqlite3`; keep this file private because it stores proposed/original source content.
 
 Start the API from this directory:
 
