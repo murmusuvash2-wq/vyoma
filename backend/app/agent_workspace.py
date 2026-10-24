@@ -42,6 +42,28 @@ def _root_path(workspace_root: str | Path) -> Path:
     return root
 
 
+def _is_protected_path(relative_path: str | Path) -> bool:
+    """Hide or reject common secret, signing, local-config and workflow paths."""
+    path = Path(relative_path)
+    parts = [part.lower() for part in path.parts]
+    name = parts[-1] if parts else ""
+    if any(part == ".github" for part in parts) and "workflows" in parts:
+        return True
+    if name in {
+        ".env", ".env.local", ".env.production", "local.properties",
+        "gradle.properties", "google-services.json", "secrets.properties",
+        "credentials.json", "service-account.json",
+    }:
+        return True
+    if name.startswith(".env.") or any(
+        name.endswith(suffix) for suffix in (".jks", ".keystore", ".pem", ".p12", ".pfx", ".key")
+    ):
+        return True
+    if "secret" in name or "credential" in name:
+        return True
+    return False
+
+
 def _safe_relative_path(value: str) -> Path:
     if not value or "\x00" in value:
         raise WorkspaceError("A non-empty relative file path is required.")
@@ -50,6 +72,8 @@ def _safe_relative_path(value: str) -> Path:
         raise WorkspaceError("Only normalized relative paths inside the task workspace are allowed.")
     if not raw.parts:
         raise WorkspaceError("A file path is required.")
+    if _is_protected_path(raw):
+        raise WorkspaceError("Protected configuration, secret, signing, and workflow files are not accessible to the coding agent.")
     return raw
 
 
@@ -85,7 +109,7 @@ def list_files(workspace_root: str | Path, *, limit: int = 100) -> list[str]:
         )
         for name in sorted(files):
             path = current_path / name
-            if path.is_symlink() or path.suffix.lower() not in _TEXT_SUFFIXES:
+            if path.is_symlink() or path.suffix.lower() not in _TEXT_SUFFIXES or _is_protected_path(path.relative_to(root)):
                 continue
             result.append(path.relative_to(root).as_posix())
             if len(result) >= limit:
