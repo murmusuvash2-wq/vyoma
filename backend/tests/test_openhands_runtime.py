@@ -52,3 +52,13 @@ def test_openhands_rejects_empty_goal(tmp_path: Path):
             tmp_path, "  ", model="test-model", api_key="test-only-key",
             sdk_factory=fake_factory,
         )
+
+
+def test_openhands_sdk_dependencies_and_tool_imports():
+    from openhands.sdk import Agent, Conversation, LLM, Tool
+    from openhands.tools.file_editor import FileEditorTool
+    from openhands.tools.task_tracker import TaskTrackerTool
+
+    assert all(item is not None for item in (
+        Agent, Conversation, LLM, Tool, FileEditorTool, TaskTrackerTool
+    ))
