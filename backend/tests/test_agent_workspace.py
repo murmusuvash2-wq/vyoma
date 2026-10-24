@@ -68,3 +68,42 @@ def test_list_files_skips_build_outputs_and_hidden_paths(tmp_path: Path) -> None
     (tmp_path / "build" / "Generated.kt").write_text("generated", encoding="utf-8")
     (tmp_path / ".git" / "config").write_text("secret", encoding="utf-8")
     assert list_files(tmp_path) == ["src/Main.kt"]
+
+
+
+@pytest.mark.parametrize(
+    "protected_path",
+    [
+        ".env",
+        ".env.production",
+        "local.properties",
+        "gradle.properties",
+        "google-services.json",
+        "secrets.properties",
+        "release-key.keystore",
+        "signing.p12",
+        ".github/workflows/android.yml",
+    ],
+)
+def test_protected_paths_are_not_read_or_proposed(tmp_path: Path, protected_path: str):
+    target = tmp_path / protected_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("not for the agent", encoding="utf-8")
+
+    with pytest.raises(WorkspaceError, match="Protected configuration"):
+        read_file(tmp_path, protected_path)
+
+    with pytest.raises(WorkspaceError, match="Protected configuration"):
+        propose_file_change(tmp_path, protected_path, "changed")
+    assert target.read_text(encoding="utf-8") == "not for the agent"
+
+
+def test_list_files_hides_protected_paths(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    (tmp_path / "src" / "Main.kt").write_text("package src\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("SECRET=value", encoding="utf-8")
+    (tmp_path / "local.properties").write_text("sdk.dir=/private", encoding="utf-8")
+    (tmp_path / ".github" / "workflows" / "android.yml").write_text("permissions: write-all", encoding="utf-8")
+
+    assert list_files(tmp_path) == ["src/Main.kt"]
