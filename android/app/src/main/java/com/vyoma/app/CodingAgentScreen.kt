@@ -35,9 +35,10 @@ import kotlinx.coroutines.launch
 internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val taskPrefs = remember(context) { context.getSharedPreferences("vyoma_coding_agent_v1", android.content.Context.MODE_PRIVATE) }
-    var backendUrl by remember { mutableStateOf("") }
-    var bearerToken by remember { mutableStateOf("") }
-    var projectId by remember { mutableStateOf("sample") }
+    val savedConnection = remember(context) { CodingAgentConnectionStore.load(context) }
+    var backendUrl by remember { mutableStateOf(savedConnection.backendUrl) }
+    var bearerToken by remember { mutableStateOf(savedConnection.bearerToken) }
+    var projectId by remember { mutableStateOf(savedConnection.projectId) }
     var goal by remember { mutableStateOf("") }
     var consentToSendSource by remember { mutableStateOf(false) }
     var task by remember { mutableStateOf<CodingAgentTask?>(null) }
@@ -63,7 +64,11 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
             ) {
                 OutlinedTextField(
                     value = backendUrl,
-                    onValueChange = { backendUrl = it; error = null },
+                    onValueChange = {
+                        backendUrl = it
+                        error = null
+                        CodingAgentConnectionStore.save(context, it, projectId, bearerToken)
+                    },
                     label = { Text("Backend HTTPS URL") },
                     placeholder = { Text("https://your-private-backend.example") },
                     supportingText = { Text("Use a deployed HTTPS backend. Do not expose the development server publicly.") },
@@ -72,7 +77,11 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                 )
                 OutlinedTextField(
                     value = bearerToken,
-                    onValueChange = { bearerToken = it; error = null },
+                    onValueChange = {
+                        bearerToken = it
+                        error = null
+                        CodingAgentConnectionStore.save(context, backendUrl, projectId, it)
+                    },
                     label = { Text("Development bearer token") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -80,7 +89,11 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                 )
                 OutlinedTextField(
                     value = projectId,
-                    onValueChange = { projectId = it; error = null },
+                    onValueChange = {
+                        projectId = it
+                        error = null
+                        CodingAgentConnectionStore.save(context, backendUrl, it, bearerToken)
+                    },
                     label = { Text("Backend project ID") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
