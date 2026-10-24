@@ -51,3 +51,21 @@ The Android Coding Agent screen now discloses that the task prompt and selected 
 - [ ] Isolated build worker and APK delivery
 
 This is progress toward Phase B, not a complete coding agent or production-ready backend.
+
+
+## OpenHands SDK integration (development-only)
+
+The API accepts `engine: "openhands"` on the existing plan endpoint. The Android Coding Agent screen exposes a Use OpenHands SDK checkbox. The backend adapter builds a disposable copy containing only bounded, supported source/text files, starts an OpenHands SDK conversation with `FileEditorTool` and `TaskTrackerTool`, and intentionally does not register `TerminalTool`. It compares the copy with its initial state and returns validated proposals for the existing approval flow. The original project is not writable during planning.
+
+Configure `VYOMA_OPENHANDS_MODEL` and `VYOMA_OPENHANDS_API_KEY` on the backend, with optional `VYOMA_OPENHANDS_BASE_URL`. OpenHands uses its own LLM configuration; this is separate from the simple planner's `VYOMA_AI_*` variables.
+
+Important: a temporary directory is not a security sandbox. File-edit-only tools reduce execution risk, but do not use this adapter with sensitive or untrusted projects or expose the development backend publicly. Production should run OpenHands through Agent Server in an isolated ephemeral container with strict network, CPU, memory, time and cost controls. No build/test execution or APK delivery is enabled.
+
+## OpenHands integration acceptance
+
+- [x] Add pinned OpenHands SDK/tool dependencies.
+- [x] Add a disposable-copy adapter without a terminal tool.
+- [x] Add an API engine selector and Android UI opt-in.
+- [x] Add mocked tests for the adapter and API route.
+- [ ] Run the live SDK against a disposable sample project.
+- [ ] Move execution to isolated OpenHands Agent Server/container before public use.
