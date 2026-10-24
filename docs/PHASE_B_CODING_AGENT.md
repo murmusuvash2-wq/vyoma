@@ -69,3 +69,14 @@ Important: a temporary directory is not a security sandbox. File-edit-only tools
 - [x] Add mocked tests for the adapter and API route.
 - [ ] Run the live SDK against a disposable sample project.
 - [ ] Move execution to isolated OpenHands Agent Server/container before public use.
+
+
+## Latest increment: task audit trail
+
+- [x] Record task creation, proposal creation, user rejection, successful application, and workspace conflicts as append-only SQLite events.
+- [x] Expose a bearer-authenticated task audit endpoint.
+- [x] Keep audit events minimal: event type, task/proposal IDs, relative path, timestamp and bounded details; do not store proposed source content or API secrets in the audit event.
+- [x] Add API tests for event ordering and unknown-task rejection.
+- [ ] Add per-user identity/ownership, retention policy, tamper-resistant production audit storage, and concurrency/transaction guarantees before deployment.
+
+This is a development audit trail, not a tamper-proof compliance log. The API still uses one shared development bearer token.
