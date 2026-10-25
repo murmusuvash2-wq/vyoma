@@ -137,3 +137,80 @@ def test_audit_endpoint_rejects_unknown_task(tmp_path: Path, monkeypatch) -> Non
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 404
+
+
+
+def test_applied_proposal_can_be_undone_and_audited(tmp_path: Path, monkeypatch):
+    token = setup_env(tmp_path, monkeypatch)
+    headers = {"Authorization": f"Bearer {token}"}
+    task_id = client.post("/v1/tasks", headers=headers).json()["task_id"]
+    workspace = tmp_path / "workspaces" / task_id
+    target = workspace / "src" / "Main.kt"
+    target.parent.mkdir(parents=True)
+    target.write_text("original\\n", encoding="utf-8")
+
+    proposal = client.post(
+        f"/v1/tasks/{task_id}/proposals",
+        headers=headers,
+        json={"path": "src/Main.kt", "proposed_content": "updated\\n"},
+    )
+    assert proposal.status_code == 200, proposal.text
+    proposal_id = proposal.json()["proposal_id"]
+
+    applied = client.post(
+        f"/v1/tasks/{task_id}/proposals/{proposal_id}/decision",
+        headers=headers,
+        json={"approved": True},
+    )
+    assert applied.status_code == 200, applied.text
+    assert target.read_text(encoding="utf-8") == "updated\\n"
+
+    undone = client.post(
+        f"/v1/tasks/{task_id}/proposals/{proposal_id}/undo",
+        headers=headers,
+    )
+    assert undone.status_code == 200, undone.text
+    assert undone.json()["status"] == "undone"
+    assert target.read_text(encoding="utf-8") == "original\\n"
+
+    duplicate = client.post(
+        f"/v1/tasks/{task_id}/proposals/{proposal_id}/undo",
+        headers=headers,
+    )
+    assert duplicate.status_code == 409
+
+    audit = client.get(f"/v1/tasks/{task_id}/audit", headers=headers)
+    assert [event["event_type"] for event in audit.json()["events"]][-2:] == [
+        "proposal_applied",
+        "proposal_undone",
+    ]
+
+
+def test_undo_refuses_to_overwrite_newer_file_content(tmp_path: Path, monkeypatch):
+    token = setup_env(tmp_path, monkeypatch)
+    headers = {"Authorization": f"Bearer {token}"}
+    task_id = client.post("/v1/tasks", headers=headers).json()["task_id"]
+    workspace = tmp_path / "workspaces" / task_id
+    target = workspace / "Main.kt"
+    target.write_text("original\\n", encoding="utf-8")
+
+    proposal = client.post(
+        f"/v1/tasks/{task_id}/proposals",
+        headers=headers,
+        json={"path": "Main.kt", "proposed_content": "approved version\\n"},
+    ).json()
+    proposal_id = proposal["proposal_id"]
+    applied = client.post(
+        f"/v1/tasks/{task_id}/proposals/{proposal_id}/decision",
+        headers=headers,
+        json={"approved": True},
+    )
+    assert applied.status_code == 200
+    target.write_text("newer user edit\\n", encoding="utf-8")
+
+    undone = client.post(
+        f"/v1/tasks/{task_id}/proposals/{proposal_id}/undo",
+        headers=headers,
+    )
+    assert undone.status_code == 409
+    assert target.read_text(encoding="utf-8") == "newer user edit\\n"
