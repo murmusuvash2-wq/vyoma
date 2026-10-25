@@ -317,6 +317,7 @@ def test_zip_import_adds_utf8_source_files_to_empty_project(tmp_path: Path, monk
     "../outside.kt",
     "/absolute.kt",
     "app/../../outside.kt",
+    "app\\..\\outside.kt",
     ".env",
     ".env/local-config.txt",
     "config/service-account.json",
