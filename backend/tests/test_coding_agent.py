@@ -1,4 +1,7 @@
+import base64
+import io
 import json
+import zipfile
 from pathlib import Path
 from urllib.error import HTTPError
 
@@ -273,3 +276,76 @@ def test_api_openhands_engine_returns_reviewable_plan_without_mutation(tmp_path:
     assert body["status"] == "WAITING_FOR_APPROVAL"
     assert "openhands" in body["changes"][0]["diff"]
     assert target.read_text(encoding="utf-8") == "fun main() = Unit\\n"
+
+
+def _zip_base64(entries: list[tuple[str, bytes]]) -> str:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, data in entries:
+            archive.writestr(name, data)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _prepare_import_project(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    project = root / "sample"
+    project.mkdir(parents=True)
+    monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", "test-token")
+    monkeypatch.setenv("VYOMA_WORKSPACE_ROOT", str(root))
+    return project
+
+
+def test_zip_import_adds_utf8_source_files_to_empty_project(tmp_path: Path, monkeypatch):
+    project = _prepare_import_project(tmp_path, monkeypatch)
+    client = TestClient(coding_agent_module.api)
+    response = client.post(
+        "/v1/projects/sample/import-zip",
+        json={"archive_base64": _zip_base64([
+            ("app/src/MainActivity.kt", b"package sample\\n"),
+            ("settings.gradle.kts", b"rootProject.name = \\"Sample\\"\\n"),
+        ])},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["imported_files"] == 2
+    assert (project / "app/src/MainActivity.kt").read_text(encoding="utf-8") == "package sample\\n"
+    assert (project / "settings.gradle.kts").is_file()
+
+
+@pytest.mark.parametrize("unsafe_name", [
+    "../outside.kt",
+    "/absolute.kt",
+    "app/../../outside.kt",
+    ".env",
+    "config/service-account.json",
+    "app/upload-keystore.jks",
+    "build/generated.kt",
+    "assets/photo.png",
+])
+def test_zip_import_rejects_unsafe_or_unsupported_entries(tmp_path: Path, monkeypatch, unsafe_name: str):
+    project = _prepare_import_project(tmp_path, monkeypatch)
+    client = TestClient(coding_agent_module.api)
+    response = client.post(
+        "/v1/projects/sample/import-zip",
+        json={"archive_base64": _zip_base64([(unsafe_name, b"unsafe content")])},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert response.status_code in {400, 413}
+    assert list(project.iterdir()) == []
+
+
+def test_zip_import_requires_authentication_and_empty_workspace(tmp_path: Path, monkeypatch):
+    project = _prepare_import_project(tmp_path, monkeypatch)
+    client = TestClient(coding_agent_module.api)
+    payload = {"archive_base64": _zip_base64([("Main.kt", b"fun main() = Unit\\n")])}
+    unauthorized = client.post("/v1/projects/sample/import-zip", json=payload)
+    assert unauthorized.status_code == 401
+
+    (project / "existing.kt").write_text("do not overwrite", encoding="utf-8")
+    conflict = client.post(
+        "/v1/projects/sample/import-zip",
+        json=payload,
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert conflict.status_code == 409
+    assert (project / "existing.kt").read_text(encoding="utf-8") == "do not overwrite"
