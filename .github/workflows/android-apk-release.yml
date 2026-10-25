@@ -152,7 +152,7 @@ jobs:
           cp "$BUNDLE/SHA256SUMS.txt" "$OUT/SHA256SUMS-${VERSION}.txt"
           (cd "$OUT" && zip -qr "Vyoma-${VERSION}-Android.zip" "Vyoma-${VERSION}-Android")
           test -s "$OUT/Vyoma-${VERSION}-Android.zip"
-          sha256sum "$OUT/Vyoma-${VERSION}-Android.zip" > "$OUT/SHA256SUMS-ZIP-${VERSION}.txt"
+          (cd "$OUT" && sha256sum "Vyoma-${VERSION}-Android.zip" > "SHA256SUMS-ZIP-${VERSION}.txt")
           echo "bundle=$OUT/Vyoma-${VERSION}-Android.zip" >> "$GITHUB_OUTPUT"
 
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/feature/approved-homepage-layout" ]]; then
