@@ -302,7 +302,7 @@ def test_zip_import_adds_utf8_source_files_to_empty_project(tmp_path: Path, monk
         "/v1/projects/sample/import-zip",
         json={"archive_base64": _zip_base64([
             ("app/src/MainActivity.kt", b"package sample\\n"),
-            ("settings.gradle.kts", b"rootProject.name = \\"Sample\\"\\n"),
+            ("settings.gradle.kts", b'rootProject.name = "Sample"\\n'),
         ])},
         headers={"Authorization": "Bearer test-token"},
     )
