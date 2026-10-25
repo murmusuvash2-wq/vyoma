@@ -5,7 +5,15 @@ be performed separately through agent_workspace.apply_approved_change after user
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import json
+import io
+import re
+import shutil
+import tempfile
+import zipfile
+from pathlib import PurePosixPath
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
@@ -505,4 +513,161 @@ def api_create_project(
         "project_id": body.project_id,
         "status": "READY",
         "message": "Empty project workspace created. No source code or build files have been generated yet.",
+    }
+
+
+# ZIP import limits are intentionally conservative for the development backend.
+MAX_IMPORT_ARCHIVE_BYTES = 10 * 1024 * 1024
+MAX_IMPORT_FILES = 500
+MAX_IMPORT_UNCOMPRESSED_BYTES = 25 * 1024 * 1024
+MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024
+_IMPORT_TEXT_SUFFIXES = {
+    ".kt", ".kts", ".java", ".xml", ".gradle", ".properties", ".toml",
+    ".json", ".yaml", ".yml", ".md", ".txt", ".py", ".ts", ".tsx",
+    ".js", ".jsx", ".css", ".html", ".sql", ".sh", ".gitignore",
+}
+_PROTECTED_NAMES = {
+    ".env", ".env.local", ".env.production", "id_rsa", "id_ed25519",
+    "keystore", "upload-keystore.jks", "debug.keystore", "credentials.json",
+    "secrets.json", "service-account.json",
+}
+
+
+class ImportProjectZipRequest(BaseModel):
+    archive_base64: str = Field(min_length=1, max_length=14_000_000)
+
+
+def _validate_import_member(info: zipfile.ZipInfo) -> tuple[str, bool]:
+    raw = info.filename
+    if not raw or "\\x00" in raw or "\\\\" in raw:
+        raise HTTPException(status_code=400, detail="ZIP contains an invalid path.")
+    path = PurePosixPath(raw)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise HTTPException(status_code=400, detail="ZIP contains a path traversal entry.")
+    if path.parts and ":" in path.parts[0]:
+        raise HTTPException(status_code=400, detail="ZIP contains an absolute or drive-qualified path.")
+    normalized = path.as_posix().rstrip("/")
+    if not normalized:
+        raise HTTPException(status_code=400, detail="ZIP contains an invalid path.")
+    mode = (info.external_attr >> 16) & 0xFFFF
+    if mode and (mode & 0o170000) == 0o120000:
+        raise HTTPException(status_code=400, detail="ZIP symlink entries are not allowed.")
+    if info.is_dir():
+        return normalized, True
+    name_parts = {part.lower() for part in path.parts}
+    basename = path.name.lower()
+    if basename in _PROTECTED_NAMES or basename.startswith(".env."):
+        raise HTTPException(status_code=400, detail="ZIP contains a protected secrets or signing file.")
+    if any(part in {"node_modules", ".git", ".gradle", "build", ".idea", ".venv"} for part in name_parts):
+        raise HTTPException(status_code=400, detail="ZIP must not contain repository metadata or generated build output.")
+    if path.suffix.lower() not in _IMPORT_TEXT_SUFFIXES and basename not in {".gitignore", "dockerfile"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported imported file type: {path.suffix or basename}. Only text/source files are supported in this first import flow.")
+    if info.file_size > MAX_IMPORT_FILE_BYTES:
+        raise HTTPException(status_code=413, detail="ZIP contains a file that exceeds the per-file size limit.")
+    if info.file_size > 0 and info.compress_size == 0:
+        raise HTTPException(status_code=400, detail="ZIP contains an invalid compressed-size declaration.")
+    if info.compress_size > 0 and info.file_size / info.compress_size > 200:
+        raise HTTPException(status_code=400, detail="ZIP compression ratio is too high.")
+    return normalized, False
+
+
+@api.post("/v1/projects/{project_id}/import-zip")
+def api_import_project_zip(
+    project_id: str,
+    body: ImportProjectZipRequest,
+    _: None = Depends(_require_api_token),
+) -> dict[str, Any]:
+    """Import a bounded source-only ZIP into an existing empty server-managed project."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID.")
+    configured = os.environ.get("VYOMA_WORKSPACE_ROOT", "").strip()
+    if not configured:
+        raise HTTPException(status_code=503, detail="Workspace root is not configured.")
+    root = Path(configured).expanduser().resolve()
+    project = (root / project_id).resolve()
+    try:
+        project.relative_to(root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID.") from None
+    if not project.is_dir():
+        raise HTTPException(status_code=404, detail="Project workspace was not found.")
+    if any(project.iterdir()):
+        raise HTTPException(status_code=409, detail="Import is only allowed into an empty project workspace.")
+
+    try:
+        archive_bytes = base64.b64decode(body.archive_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Archive must be valid base64-encoded ZIP data.") from None
+    if not archive_bytes or len(archive_bytes) > MAX_IMPORT_ARCHIVE_BYTES:
+        raise HTTPException(status_code=413, detail="ZIP archive is empty or exceeds the 10 MB upload limit.")
+
+    staged_files = 0
+    total_uncompressed = 0
+    seen: set[str] = set()
+    with tempfile.TemporaryDirectory(prefix="vyoma-import-", dir=str(root)) as temp_dir:
+        stage = Path(temp_dir) / "source"
+        stage.mkdir(mode=0o700)
+        try:
+            with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+                entries = archive.infolist()
+                if not entries:
+                    raise HTTPException(status_code=400, detail="ZIP archive contains no files.")
+                for info in entries:
+                    relative, is_directory = _validate_import_member(info)
+                    if relative in seen:
+                        raise HTTPException(status_code=400, detail="ZIP contains duplicate paths.")
+                    seen.add(relative)
+                    if is_directory:
+                        continue
+                    staged_files += 1
+                    total_uncompressed += info.file_size
+                    if staged_files > MAX_IMPORT_FILES:
+                        raise HTTPException(status_code=413, detail="ZIP contains too many files.")
+                    if total_uncompressed > MAX_IMPORT_UNCOMPRESSED_BYTES:
+                        raise HTTPException(status_code=413, detail="ZIP expands beyond the 25 MB total limit.")
+                    destination = stage.joinpath(*PurePosixPath(relative).parts)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    # Stream with an actual byte limit rather than trusting ZIP metadata alone.
+                    written = 0
+                    with archive.open(info, "r") as source, destination.open("xb") as target:
+                        while True:
+                            chunk = source.read(64 * 1024)
+                            if not chunk:
+                                break
+                            written += len(chunk)
+                            if written > MAX_IMPORT_FILE_BYTES:
+                                raise HTTPException(status_code=413, detail="ZIP contains a file that exceeds the per-file size limit.")
+                            target.write(chunk)
+                    try:
+                        destination.read_text(encoding="utf-8")
+                    except UnicodeDecodeError:
+                        raise HTTPException(status_code=400, detail="Only UTF-8 text/source files are accepted in this import flow.") from None
+                    if written != info.file_size:
+                        raise HTTPException(status_code=400, detail="ZIP entry size did not match its contents.")
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="Upload is not a valid ZIP archive.") from None
+
+        if staged_files == 0:
+            raise HTTPException(status_code=400, detail="ZIP archive contains no supported source files.")
+        # The project must still be empty immediately before the move.
+        if any(project.iterdir()):
+            raise HTTPException(status_code=409, detail="Project workspace changed during import.")
+        for child in sorted(stage.iterdir(), key=lambda p: p.name):
+            destination = project / child.name
+            if destination.exists():
+                raise HTTPException(status_code=409, detail="Import would overwrite an existing project file.")
+            shutil.move(str(child), str(destination))
+
+    write_audit_event(
+        "project_source_imported",
+        project_id=project_id,
+        status="READY",
+        details={"file_count": staged_files, "uncompressed_bytes": total_uncompressed, "format": "source-only-zip"},
+    )
+    return {
+        "project_id": project_id,
+        "status": "READY",
+        "imported_files": staged_files,
+        "uncompressed_bytes": total_uncompressed,
+        "message": "Source files imported. Binary assets, signing files, secrets, and generated build output are not supported.",
     }
