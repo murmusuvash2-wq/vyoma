@@ -200,7 +200,7 @@ def test_api_rejects_plan_without_mutating_workspace(tmp_path: Path, monkeypatch
     assert duplicate.status_code == 409
 
 
-def test_api_refuses_multi_file_apply_without_mutating_any_file(tmp_path: Path, monkeypatch):
+def test_api_applies_multi_file_plan_after_single_explicit_approval(tmp_path: Path, monkeypatch):
     root = tmp_path / "workspaces"
     project = root / "sample"
     project.mkdir(parents=True)
@@ -235,14 +235,15 @@ def test_api_refuses_multi_file_apply_without_mutating_any_file(tmp_path: Path, 
     assert planned.status_code == 200, planned.text
     task = planned.json()
     assert len(task["changes"]) == 2
+    # Planning must remain read-only until the user approves the complete diff.
     assert first.read_text(encoding="utf-8") == "fun main() = Unit\\n"
     assert second.read_text(encoding="utf-8") == "object Settings\\n"
 
     approved = client.post(f"/v1/tasks/{task['task_id']}/approve", headers=headers)
-    assert approved.status_code == 409
-    assert "one-file plans" in approved.json()["detail"]
-    assert first.read_text(encoding="utf-8") == "fun main() = Unit\\n"
-    assert second.read_text(encoding="utf-8") == "object Settings\\n"
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "SUCCEEDED"
+    assert first.read_text(encoding="utf-8") == "fun main() = println(1)\\n"
+    assert second.read_text(encoding="utf-8") == "object Settings { val enabled = true }\\n"
 
 
 def test_api_openhands_engine_returns_reviewable_plan_without_mutation(tmp_path: Path, monkeypatch):
