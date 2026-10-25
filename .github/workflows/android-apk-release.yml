@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - "feature/approved-homepage-layout"
+      - "feature/zip-release-completion"
     tags:
       - "v*"
 
