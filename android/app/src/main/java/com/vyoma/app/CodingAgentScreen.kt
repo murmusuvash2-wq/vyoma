@@ -309,9 +309,9 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                             Text("Each file is listed separately.", color = Muted, fontSize = 11.sp)
                         }
                     }
-                    if (current.status == "WAITING_FOR_APPROVAL" && current.changes.size == 1) {
+                    if (current.status == "WAITING_FOR_APPROVAL" && current.changes.isNotEmpty()) {
                         Text(
-                            "Review carefully. Approving applies this one-file change to the configured backend workspace.",
+                            "Review every listed diff carefully. Approving applies this complete change set to the configured backend workspace.",
                             color = androidx.compose.ui.graphics.Color(0xFF8A4B00),
                             fontSize = 12.sp
                         )
@@ -333,7 +333,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                                 }
                             },
                             enabled = !busy
-                        ) { Text("Approve & apply one-file change") }
+                        ) { Text("Approve & apply change set") }
 
                         OutlinedButton(
                             onClick = {
@@ -354,12 +354,6 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                             },
                             enabled = !busy
                         ) { Text("Reject plan") }
-                    } else if (current.status == "WAITING_FOR_APPROVAL" && current.changes.size > 1) {
-                        Text(
-                            "This backend currently refuses multi-file apply. Split the request into smaller tasks.",
-                            color = androidx.compose.ui.graphics.Color(0xFF8A4B00),
-                            fontSize = 12.sp
-                        )
                     }
                     if (current.status == "SUCCEEDED") {
                         Text("Change applied to the backend workspace. Build/test checks have not run yet.", color = Green, fontWeight = FontWeight.SemiBold)
