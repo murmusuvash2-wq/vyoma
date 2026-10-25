@@ -539,7 +539,7 @@ class ImportProjectZipRequest(BaseModel):
 
 def _validate_import_member(info: zipfile.ZipInfo) -> tuple[str, bool]:
     raw = info.filename
-    if not raw or "\\x00" in raw or "\\\\" in raw:
+    if not raw or "\x00" in raw or "\\" in raw:
         raise HTTPException(status_code=400, detail="ZIP contains an invalid path.")
     path = PurePosixPath(raw)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
