@@ -25,6 +25,7 @@ from app.agent_workspace import (
     list_files,
     propose_file_change,
     read_file,
+    restore_applied_change,
 )
 
 app = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
@@ -264,6 +265,59 @@ def decide_proposal(task_id: str, proposal_id: str, request: ApprovalRequest) ->
         details="Approved change applied",
     )
     return {"proposal_id": proposal_id, "status": "applied"}
+
+
+
+@app.post(
+    "/v1/tasks/{task_id}/proposals/{proposal_id}/undo",
+    dependencies=[Depends(require_token)],
+)
+def undo_applied_proposal(task_id: str, proposal_id: str) -> dict[str, str]:
+    """Undo a prior approved edit if the file still matches that edit exactly."""
+    db_path = _db_path()
+    with closing(sqlite3.connect(db_path)) as db:
+        row = db.execute(
+            """SELECT relative_path, original_content, proposed_content,
+                      original_exists, status
+               FROM proposals WHERE proposal_id = ? AND task_id = ?""",
+            (proposal_id, task_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Proposal not found.")
+        relative_path, original, proposed, original_exists, current_status = row
+        if current_status != "applied":
+            raise HTTPException(status_code=409, detail="Only an applied proposal can be undone.")
+        try:
+            restore_applied_change(
+                _workspace(task_id),
+                relative_path,
+                expected_current_content=proposed,
+                original_content=original,
+                original_exists=bool(original_exists),
+                approved=True,
+            )
+        except (WorkspaceError, OSError) as exc:
+            _audit(
+                task_id,
+                "proposal_undo_conflict",
+                proposal_id=proposal_id,
+                relative_path=relative_path,
+                details="Undo refused to protect newer workspace content",
+            )
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        db.execute(
+            "UPDATE proposals SET status='undone' WHERE proposal_id=? AND status='applied'",
+            (proposal_id,),
+        )
+        db.commit()
+    _audit(
+        task_id,
+        "proposal_undone",
+        proposal_id=proposal_id,
+        relative_path=relative_path,
+        details="User requested undo; original content restored safely",
+    )
+    return {"proposal_id": proposal_id, "status": "undone"}
 
 
 @app.get("/v1/tasks/{task_id}/audit", dependencies=[Depends(require_token)])
