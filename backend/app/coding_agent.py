@@ -556,7 +556,13 @@ def _validate_import_member(info: zipfile.ZipInfo) -> tuple[str, bool]:
         return normalized, True
     name_parts = {part.lower() for part in path.parts}
     basename = path.name.lower()
-    if basename in _PROTECTED_NAMES or basename.startswith(".env."):
+    sensitive_suffixes = {".jks", ".keystore", ".pem", ".p12", ".pfx", ".key"}
+    if (
+        any(part == ".env" or part.startswith(".env.") for part in name_parts)
+        or any(part in _PROTECTED_NAMES for part in name_parts)
+        or basename.startswith(".env.")
+        or path.suffix.lower() in sensitive_suffixes
+    ):
         raise HTTPException(status_code=400, detail="ZIP contains a protected secrets or signing file.")
     if any(part in {"node_modules", ".git", ".gradle", "build", ".idea", ".venv"} for part in name_parts):
         raise HTTPException(status_code=400, detail="ZIP must not contain repository metadata or generated build output.")
@@ -649,14 +655,17 @@ def api_import_project_zip(
 
         if staged_files == 0:
             raise HTTPException(status_code=400, detail="ZIP archive contains no supported source files.")
-        # The project must still be empty immediately before the move.
+        # Replace the empty workspace directory in one rename; restore it if promotion fails.
         if any(project.iterdir()):
             raise HTTPException(status_code=409, detail="Project workspace changed during import.")
-        for child in sorted(stage.iterdir(), key=lambda p: p.name):
-            destination = project / child.name
-            if destination.exists():
-                raise HTTPException(status_code=409, detail="Import would overwrite an existing project file.")
-            shutil.move(str(child), str(destination))
+        backup = Path(temp_dir) / "empty-project-backup"
+        project.rename(backup)
+        try:
+            stage.rename(project)
+        except OSError:
+            backup.rename(project)
+            raise HTTPException(status_code=500, detail="Could not finish importing the project. The empty workspace was restored.") from None
+        shutil.rmtree(backup, ignore_errors=True)
 
     write_audit_event(
         "project_source_imported",
