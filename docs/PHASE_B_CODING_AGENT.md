@@ -106,3 +106,18 @@ Before enabling build/test execution or treating this as production-ready:
 - [ ] Return a revision-bound diff and actual pass/fail/not-run checks to the Android review UI.
 
 The new regression tests also verify that protected .env files never appear in returned OpenHands proposals and oversized task prompts are rejected before the SDK is started.
+
+
+## Source ZIP import — next increment
+
+- [x] Add authenticated import endpoint for an existing empty project workspace.
+- [x] Accept base64-encoded ZIP archives with a 10 MB compressed limit, 25 MB total expanded limit, 500-file limit, and 2 MB per-file limit.
+- [x] Reject path traversal, absolute/drive paths, symlinks, duplicate paths, high compression ratios, protected secret/signing files, and generated output folders.
+- [x] Restrict the first import path to UTF-8 text/source files; binary assets are intentionally rejected.
+- [x] Add regression tests for successful import, unsafe paths, protected files, unsupported assets, authentication, and non-empty workspaces.
+- [ ] Connect the Android UI to select and upload a project ZIP.
+- [ ] Make import transactionally atomic across all files and add cancellation/cleanup for interrupted uploads.
+- [ ] Replace shared development bearer token with per-user identity and project ownership.
+- [ ] Move workspace operations into isolated ephemeral worker/container before accepting untrusted projects.
+
+Endpoint: `POST /v1/projects/{project_id}/import-zip` with JSON `{"archive_base64":"..."}` and the development bearer token. This endpoint is for a development environment only and must not be exposed publicly.
