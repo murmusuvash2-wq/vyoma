@@ -44,7 +44,7 @@ The Android Coding Agent screen now discloses that the task prompt and selected 
 - [x] OpenHands SDK adapter using FileEditorTool + TaskTrackerTool in a disposable copy, without a terminal tool
 - [ ] Live-test the OpenHands SDK against a disposable sample project and real provider credentials
 - [ ] Per-user authentication and durable task storage
-- [x] Initial Android Coding Agent screen wired to plan, explicit single-file approval, and plan rejection
+- [x] Initial Android Coding Agent screen wired to plan, complete change-set approval, and plan rejection
 - [x] Android task status refresh control calls the authenticated task lookup endpoint
 - [x] Restore task state and proposals after backend restart using local SQLite (single-node development only; no multi-user tenancy or distributed locking)
 - [ ] Android task persistence, refresh/status recovery, and richer diff review UI
@@ -76,7 +76,7 @@ Important: a temporary directory is not a security sandbox. File-edit-only tools
 ## Latest increment: task audit trail
 
 - [x] Record task creation, proposal creation, user rejection, successful application, and workspace conflicts as append-only SQLite events.
-- [x] Expose a bearer-authenticated task audit endpoint.
+- [ ] Expose a bearer-authenticated task audit-history endpoint in the active `app.coding_agent:api` service and add a UI viewer.
 - [x] Keep audit events minimal: event type, task/proposal IDs, relative path, timestamp and bounded details; do not store proposed source content or API secrets in the audit event.
 - [x] Add API tests for event ordering and unknown-task rejection.
 - [ ] Add per-user identity/ownership, retention policy, tamper-resistant production audit storage, and concurrency/transaction guarantees before deployment.
