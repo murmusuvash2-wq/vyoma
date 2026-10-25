@@ -176,6 +176,60 @@ def propose_file_change(
 
 
 
+
+def restore_applied_change(
+    workspace_root: str | Path,
+    relative_path: str,
+    *,
+    expected_current_content: str,
+    original_content: str | None,
+    original_exists: bool,
+    approved: bool,
+) -> None:
+    """Undo one applied change only if the target still matches the applied version.
+
+    This prevents an undo operation from overwriting edits made after the agent change.
+    Restoring a previously absent file removes it; restoring an existing file uses an
+    atomic replacement. The caller must record the undo decision in the audit trail.
+    """
+    if approved is not True:
+        raise WorkspaceError("Explicit user approval is required before undoing a change.")
+    root = _root_path(workspace_root)
+    path = _resolve_inside(root, relative_path, allow_missing=False)
+    if not path.is_file():
+        raise WorkspaceError("Undo target is no longer a regular file.")
+    if path.stat().st_size > MAX_FILE_BYTES:
+        raise WorkspaceError(f"Undo target exceeds the {MAX_FILE_BYTES}-byte limit.")
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise WorkspaceError("Undo target is no longer readable UTF-8 text.") from exc
+    if current != expected_current_content:
+        raise WorkspaceError("File changed after the approved edit; undo was refused to protect newer work.")
+    if original_exists:
+        if original_content is None or len(original_content.encode("utf-8")) > MAX_PATCH_BYTES:
+            raise WorkspaceError("Saved original content is missing or exceeds the restore limit.")
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", newline="", delete=False,
+            dir=path.parent, prefix=".vyoma-undo-",
+        ) as handle:
+            handle.write(original_content)
+            handle.flush()
+            os.fsync(handle.fileno())
+            staged = Path(handle.name)
+        try:
+            # Re-check immediately before replacement to avoid clobbering a concurrent edit.
+            if not path.is_file() or path.read_text(encoding="utf-8") != expected_current_content:
+                raise WorkspaceError("File changed while undo was being prepared; retry after review.")
+            os.replace(staged, path)
+        finally:
+            staged.unlink(missing_ok=True)
+    else:
+        # For newly created files, remove only if it still matches the approved content.
+        if not path.is_file() or path.read_text(encoding="utf-8") != expected_current_content:
+            raise WorkspaceError("File changed while undo was being prepared; retry after review.")
+        path.unlink()
+
 def apply_approved_changes(
     workspace_root: str | Path,
     proposals: list[FileChangeProposal] | tuple[FileChangeProposal, ...],
