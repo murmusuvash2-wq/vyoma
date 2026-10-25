@@ -8,6 +8,7 @@ from app.agent_workspace import (
     list_files,
     propose_file_change,
     read_file,
+    restore_applied_change,
 )
 
 
@@ -121,3 +122,53 @@ def test_oversized_proposal_is_rejected(tmp_path: Path):
 
     with pytest.raises(WorkspaceError, match="exceeds"):
         propose_file_change(tmp_path, "Main.kt", "x" * (MAX_PATCH_BYTES + 1))
+
+
+
+def test_undo_restores_original_content_when_target_is_unchanged(tmp_path: Path):
+    target = tmp_path / "Main.kt"
+    target.write_text("original\\n", encoding="utf-8")
+    proposal = propose_file_change(tmp_path, "Main.kt", "updated\\n")
+    apply_approved_change(tmp_path, proposal, approved=True)
+
+    restore_applied_change(
+        tmp_path,
+        "Main.kt",
+        expected_current_content="updated\\n",
+        original_content="original\\n",
+        original_exists=True,
+        approved=True,
+    )
+    assert target.read_text(encoding="utf-8") == "original\\n"
+
+
+def test_undo_removes_new_file_when_target_is_unchanged(tmp_path: Path):
+    proposal = propose_file_change(tmp_path, "src/New.kt", "new file\\n")
+    apply_approved_change(tmp_path, proposal, approved=True)
+
+    restore_applied_change(
+        tmp_path,
+        "src/New.kt",
+        expected_current_content="new file\\n",
+        original_content=None,
+        original_exists=False,
+        approved=True,
+    )
+    assert not (tmp_path / "src" / "New.kt").exists()
+
+
+def test_undo_refuses_to_overwrite_edits_made_after_approval(tmp_path: Path):
+    target = tmp_path / "Main.kt"
+    target.write_text("approved version\\n", encoding="utf-8")
+    target.write_text("newer user edit\\n", encoding="utf-8")
+
+    with pytest.raises(WorkspaceError, match="changed after the approved edit"):
+        restore_applied_change(
+            tmp_path,
+            "Main.kt",
+            expected_current_content="approved version\\n",
+            original_content="original version\\n",
+            original_exists=True,
+            approved=True,
+        )
+    assert target.read_text(encoding="utf-8") == "newer user edit\\n"
