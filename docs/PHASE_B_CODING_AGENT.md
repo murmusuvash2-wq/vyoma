@@ -7,7 +7,7 @@
 - Development FastAPI endpoints provide plan creation, task lookup, explicit approval, and rejection.
 - Task status and full reviewable proposals are stored in a local SQLite database so tasks can be recovered after backend restart; the database path is configurable with `VYOMA_TASK_DB_PATH`.
 - API uses a configured server-side bearer token and validates project IDs under a configured workspace root; clients cannot supply arbitrary filesystem paths.
-- Applying a proposal checks the original content for staleness. The API currently applies one-file proposals only because multi-file transactional writes/checkpoints are not implemented.
+- Applying a proposed change set preflights all paths and original contents, stages replacements, rechecks for stale edits, and attempts rollback if a replacement fails. This is not yet a durable task-wide checkpoint/undo system; rollback failure still requires discarding the worker/workspace.
 - Unit tests use a mocked provider; no real AI key is required for CI.
 
 ## Run locally
@@ -27,7 +27,7 @@ OpenHands Software Agent SDK remains the candidate for the future main coding-ag
 3. Add durable task state, audit events, quotas, cancellation, and redacted observability.
 4. Integrate OpenHands behind the narrow workspace tools; do not give the model unrestricted shell access.
 5. Keep explicit human approval before file writes and external GitHub changes.
-6. Implement transactional multi-file changes, checkpoints, rollback, and stale revision protection.
+6. Keep strengthening transactional multi-file changes and add durable task-wide checkpoints, user-visible undo, and stale revision protection.
 7. Run builds/tests in an isolated worker with CPU, memory, network, time and cost limits.
 8. Connect Android task UI and diff review to the authenticated API.
 9. Add cloud Gradle builds and APK artifact delivery only after worker isolation and security gates pass.
@@ -41,13 +41,15 @@ The Android Coding Agent screen now discloses that the task prompt and selected 
 - [x] Provider-backed planning with response/path validation
 - [x] Authenticated development API for plan/status/approval
 - [x] Unit tests and backend CI passing on the current branch
-- [ ] OpenHands SDK runtime/autonomous loop
+- [x] OpenHands SDK adapter using FileEditorTool + TaskTrackerTool in a disposable copy, without a terminal tool
+- [ ] Live-test the OpenHands SDK against a disposable sample project and real provider credentials
 - [ ] Per-user authentication and durable task storage
 - [x] Initial Android Coding Agent screen wired to plan, explicit single-file approval, and plan rejection
 - [x] Android task status refresh control calls the authenticated task lookup endpoint
 - [x] Restore task state and proposals after backend restart using local SQLite (single-node development only; no multi-user tenancy or distributed locking)
 - [ ] Android task persistence, refresh/status recovery, and richer diff review UI
-- [ ] Transactional edits, rollback and audit history
+- [x] Transactional multi-file apply with preflight checks, stale-content recheck, rollback attempt, and metadata audit events
+- [ ] Durable task-wide checkpoints, user-visible undo, and audit-history UI
 - [ ] Isolated build worker and APK delivery
 
 This is progress toward Phase B, not a complete coding agent or production-ready backend.
