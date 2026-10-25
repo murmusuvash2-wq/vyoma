@@ -42,11 +42,12 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] Reject path traversal and symlink paths; bound file/list sizes and skip build output
 - [x] Detect stale proposals before applying changes
 - [x] Add backend unit tests and a dedicated Python CI workflow
-- [x] Add explicit plan rejection path that leaves workspace unchanged\n- [x] Integrate OpenHands Software Agent SDK in a disposable-copy, file-edit-only development adapter (live runtime validation still pending)
+- [x] Add explicit plan rejection path that leaves workspace unchanged
+- [x] Integrate OpenHands Software Agent SDK in a disposable-copy, file-edit-only development adapter (live runtime validation still pending)
 - [x] Add development bearer-token task API and local SQLite task persistence; [ ] add per-user authorization, quotas and production audit database
 - [x] Connect Android Coding Agent UI to the backend with an OpenHands engine option and explicit approval/rejection
 - [x] Add basic SQLite audit events for task creation and proposal decisions (development-only, shared-token auth)
-- [x] Add API-level undo for approved single-file proposals with conflict detection and audit events
+- [ ] Add a task-level undo/restore endpoint and UI with conflict detection after an approved change
 - [ ] Add task-wide durable checkpoints and isolated build-worker execution
 
 **Exit gate:** a coding-agent task proposes a scoped diff, waits for approval, applies safely, and returns verifiable checks. This increment provides the workspace safety boundary only; it is not yet an autonomous agent.
