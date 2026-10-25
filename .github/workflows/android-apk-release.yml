@@ -117,6 +117,7 @@ jobs:
           BUNDLE="$OUT/Vyoma-${VERSION}-Android"
           mkdir -p "$BUNDLE"
           cp android/app/build/outputs/apk/release/app-release.apk "$BUNDLE/Vyoma-${VERSION}.apk"
+          cp "$BUNDLE/Vyoma-${VERSION}.apk" "$OUT/Vyoma-${VERSION}.apk"
           cat > "$BUNDLE/README-INSTALL.txt" <<EOF
           VYOMA ANDROID APK — INSTALL / UPDATE
 
@@ -169,15 +170,25 @@ jobs:
         with:
           name: vyoma-android-${{ steps.version.outputs.name }}-signed-bundle
           path: |
+            release-output/Vyoma-${{ steps.version.outputs.name }}.apk
+            release-output/Vyoma-${{ steps.version.outputs.name }}.apk
             release-output/Vyoma-${{ steps.version.outputs.name }}-Android.zip
             release-output/SHA256SUMS-ZIP-${{ steps.version.outputs.name }}.txt
             release-output/SHA256SUMS-${{ steps.version.outputs.name }}.txt
-            release-output/Vyoma-${{ steps.version.outputs.name }}-Android/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload latest-test channel artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/approved-homepage-layout'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyoma-latest-test-apk-and-zip
+          path: |
             release-output/Vyoma-latest-test.apk
             release-output/Vyoma-latest-test-Android.zip
             release-output/SHA256SUMS-latest-test.txt
             release-output/latest-test.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
 
       - name: Move latest-test channel tag to this commit
