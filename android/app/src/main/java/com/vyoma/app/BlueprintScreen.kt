@@ -34,7 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-internal data class ApprovedBlueprint(
+data class ApprovedBlueprint(
     val name: String,
     val goal: String,
     val screens: String,

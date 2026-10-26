@@ -30,7 +30,7 @@ data class AppUpdateInfo(
 object AppUpdateService {
 
     private const val DEFAULT_OWNER = "murmusuvash2-wq"
-    private const val DEFAULT_REPO = "clever-ramanujan"
+    private const val DEFAULT_REPO = "vyoma"
 
     fun getCurrentVersionName(context: Context): String {
         return try {
