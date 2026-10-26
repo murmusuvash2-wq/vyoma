@@ -201,7 +201,7 @@ import uuid
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from app.openhands_runtime import OpenHandsRuntimeError, run_openhands_plan
-from app.agent_workspace import apply_approved_change, apply_approved_changes
+from app.agent_workspace import apply_approved_change, apply_approved_changes, restore_applied_change
 from app.audit import write_audit_event
 
 api = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
@@ -471,6 +471,46 @@ def api_reject_task(task_id: str, _: None = Depends(_require_api_token)) -> dict
             "plan_rejected", task_id=task_id, project_id=task["project_id"],
             status="REJECTED",
             paths=[change.relative_path for change in task["plan"].changes],
+        )
+        return _task_json(task)
+
+
+@api.post("/v1/tasks/{task_id}/undo")
+def api_undo_task(task_id: str, _: None = Depends(_require_api_token)) -> dict[str, Any]:
+    """Undo a successfully applied single-file task, only if the file is unchanged."""
+    task = _get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task was not found.")
+    with _api_tasks_lock:
+        if task["status"] != "SUCCEEDED":
+            raise HTTPException(status_code=409, detail="Only a successful, not-yet-undone task can be undone.")
+        plan: CodingPlan = task["plan"]
+        if len(plan.changes) != 1:
+            raise HTTPException(status_code=409, detail="Undo currently supports one-file tasks only.")
+        change = plan.changes[0]
+        try:
+            restore_applied_change(
+                task["workspace"],
+                change.relative_path,
+                expected_current_content=change.proposed_content,
+                original_content=change.original_content,
+                original_exists=change.original_exists,
+                approved=True,
+            )
+        except (WorkspaceError, OSError):
+            write_audit_event(
+                "undo_refused", task_id=task_id, project_id=task["project_id"],
+                status="CONFLICT", paths=[change.relative_path],
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Undo was refused because the file changed after the approved edit. Review the file and create a new task.",
+            ) from None
+        task["status"] = "UNDONE"
+        _persist_task(task)
+        write_audit_event(
+            "task_undone", task_id=task_id, project_id=task["project_id"],
+            status="UNDONE", paths=[change.relative_path],
         )
         return _task_json(task)
 
