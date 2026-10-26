@@ -62,6 +62,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                 error = null
                 try {
                     val mime = context.contentResolver.getType(uri)?.lowercase()
+                        ?: throw IllegalArgumentException("Could not identify the selected image type.")
                     require(mime in setOf("image/png", "image/jpeg", "image/webp")) {
                         "Choose a PNG, JPEG, or WebP screenshot."
                     }
