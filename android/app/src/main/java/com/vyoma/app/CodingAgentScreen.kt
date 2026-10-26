@@ -359,9 +359,9 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                         Text("Change applied to the backend workspace. Build/test checks have not run yet.", color = Green, fontWeight = FontWeight.SemiBold)
                     }
 
-                    if (current.status == "SUCCEEDED" && current.changes.size == 1) {
+                    if (current.status == "SUCCEEDED" && current.changes.isNotEmpty()) {
                         Text(
-                            "Undo is available only if the edited file has not changed since this task was applied.",
+                            "Undo checks every changed file first. If any file has newer edits, the entire undo is refused to protect that work.",
                             color = Muted,
                             fontSize = 12.sp
                         )
@@ -383,7 +383,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                                 }
                             },
                             enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank()
-                        ) { Text("Undo approved change") }
+                        ) { Text("Undo approved changes") }
                     }
                     if (current.status == "UNDONE") {
                         Text("Change reverted. The original file was restored only after a conflict check.", color = Green, fontWeight = FontWeight.SemiBold)
