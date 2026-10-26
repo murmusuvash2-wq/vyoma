@@ -35,8 +35,8 @@ def _validated_design_image(data_url: str | None) -> str | None:
         return None
     header, separator, encoded = data_url.partition(",")
     allowed = {
-        "data:image/png;base64": ("image/png", b"\\x89PNG\\r\\n\\x1a\\n"),
-        "data:image/jpeg;base64": ("image/jpeg", b"\\xff\\xd8\\xff"),
+        "data:image/png;base64": ("image/png", bytes.fromhex("89504e470d0a1a0a")),
+        "data:image/jpeg;base64": ("image/jpeg", bytes.fromhex("ffd8ff")),
         "data:image/webp;base64": ("image/webp", b"RIFF"),
     }
     if not separator or header not in allowed:
