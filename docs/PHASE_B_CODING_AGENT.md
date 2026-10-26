@@ -139,3 +139,15 @@ Endpoint: `POST /v1/projects/{project_id}/import-zip` with JSON `{"archive_base6
 - If an operation fails after mutation begins, rollback of applied versions is attempted and a clear error is returned if recovery is incomplete.
 - Added tests for multi-file restore, no-partial-mutation on stale content, and explicit approval.
 - This remains filesystem-level development recovery, not a durable checkpoint or guaranteed transaction across hardware/process crashes.
+
+## Image-to-UI implementation increment
+- [x] Android device image picker for PNG/JPEG/WebP design references (2 MiB client cap).
+- [x] Backend validates data URL MIME, base64 and image signature before forwarding.
+- [x] Vision-capable planner accepts a text + image message and generates reviewable native source diffs.
+- [x] Image tasks select the vision planner instead of the current text-only OpenHands adapter.
+- [x] Tests cover image forwarding, invalid image rejection, and size limits.
+- [ ] Live provider test with a vision-capable model and a real screenshot.
+- [ ] Persist reusable design references and normalized design tokens per project.
+- [ ] Build an isolated preview worker and compare rendered Compose output with the reference.
+
+See docs/MCP_CONNECTORS_AND_DESIGN_TO_CODE.md for the Figma/Canva/Supabase MCP integration design, official provider constraints, and staged rollout. MCP OAuth/transport is not implemented yet; a connector connected to ChatGPT does not automatically connect to Vyoma.
