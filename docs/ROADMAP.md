@@ -93,14 +93,21 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** status reports never say “passed” for tests that did not run.
 
-## M6 — Cloud build and release
+## M6 — Cloud build, preview approval, and in-app updates
 - [ ] Isolated worker, quotas, cancellation, and artifact expiry
-- [ ] Cloud Gradle build and downloadable APK artifact
-- [ ] Signing-key handling outside source code; release signing requires explicit setup
-- [ ] Build failure diagnostics and reproducibility metadata
-- [ ] Emulator/device testing of critical flows
+- [ ] Build an immutable project revision into a previewable APK/artifact
+- [ ] Show preview/build/test results tied to the exact source revision
+- [ ] Add explicit **Looks good / Approve this version** control after preview
+- [ ] After approval, offer **Build update** and track queued/building/succeeded/failed states
+- [ ] Keep a version history with revision, changelog, build/test results, and rollback target
+- [ ] Add an in-app **Check for updates / Update app** control to generated apps
+- [ ] Download and verify update artifacts (versionCode + SHA-256) before offering installation
+- [ ] Support Play in-app updates for Play-distributed apps; for direct APK distribution, open Android's package installer and require OS/user confirmation
+- [ ] Signing-key handling outside source code; never expose signing keys to the agent or generated app
+- [ ] Build failure diagnostics, reproducibility metadata, and emulator/device tests
+- [ ] Preserve the last known-good release and allow rollback to a prior approved revision
 
-**Exit gate:** a clean Android starter project builds in the cloud and the APK can be downloaded securely.
+**Exit gate:** previewing never publishes or installs anything. Only after explicit approval can an immutable revision be built as an update; generated apps can check for a newer compatible signed release, verify it, and update through the permitted distribution flow.
 
 ## M7 — Product hardening
 - [ ] Usage/cost limits and abuse controls
