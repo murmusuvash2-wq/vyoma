@@ -26,6 +26,34 @@ from app.agent_workspace import FileChangeProposal, WorkspaceError, list_files, 
 MAX_CONTEXT_BYTES = 40_000
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_PROPOSED_FILES = 8
+MAX_DESIGN_IMAGE_BYTES = 2 * 1024 * 1024
+
+
+def _validated_design_image(data_url: str | None) -> str | None:
+    """Validate a small user-selected PNG/JPEG/WebP data URL before forwarding it to vision."""
+    if data_url is None or not data_url.strip():
+        return None
+    header, separator, encoded = data_url.partition(",")
+    allowed = {
+        "data:image/png;base64": ("image/png", b"\\x89PNG\\r\\n\\x1a\\n"),
+        "data:image/jpeg;base64": ("image/jpeg", b"\\xff\\xd8\\xff"),
+        "data:image/webp;base64": ("image/webp", b"RIFF"),
+    }
+    if not separator or header not in allowed:
+        raise CodingAgentError("Attach a PNG, JPEG, or WebP design image.")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise CodingAgentError("The attached design image is not valid base64 data.") from None
+    if not raw or len(raw) > MAX_DESIGN_IMAGE_BYTES:
+        raise CodingAgentError("Design images must be between 1 byte and 2 MB.")
+    mime, signature = allowed[header]
+    valid_signature = raw.startswith(signature)
+    if mime == "image/webp":
+        valid_signature = valid_signature and len(raw) >= 12 and raw[8:12] == b"WEBP"
+    if not valid_signature:
+        raise CodingAgentError("The image data does not match its declared image type.")
+    return f"data:{mime};base64,{encoded}"
 
 
 class CodingAgentError(RuntimeError):
@@ -72,6 +100,7 @@ def plan_code_changes(
     model: str,
     api_key: str,
     timeout_seconds: int = 60,
+    design_image_data_url: str | None = None,
 ) -> CodingPlan:
     """Ask an OpenAI-compatible endpoint for a bounded plan and validated file diffs.
 
@@ -88,8 +117,9 @@ def plan_code_changes(
     if parsed.scheme != "https" or not parsed.netloc:
         raise CodingAgentError("The AI provider endpoint must use HTTPS.")
 
+    validated_image = _validated_design_image(design_image_data_url)
     root = Path(workspace_root).expanduser().resolve(strict=True)
-    file_context: list[dict[str, str]] = []
+    file_context: list[dict[str, str]] =
     used = 0
     for relative_path in list_files(root, limit=100):
         try:
@@ -115,14 +145,32 @@ def plan_code_changes(
         "You cannot execute commands. Your output will be reviewed before any file is changed."
     )
     user_payload = json.dumps(
-        {"goal": user_goal.strip(), "workspace_files": file_context},
+        {
+            "goal": user_goal.strip(),
+            "workspace_files": file_context,
+            "design_reference_attached": validated_image is not None,
+            "design_reference_instructions": (
+                "Treat the attached screenshot as a visual reference. Recreate its layout, hierarchy, "
+                "spacing, colors, typography and component relationships in native Jetpack Compose. "
+                "Use placeholder content/assets where text is unreadable; do not assume backend behavior "
+                "from pixels. Keep accessibility, responsive sizing, existing app architecture and theme."
+                if validated_image else None
+            ),
+        },
         ensure_ascii=False,
     )
     request_body = json.dumps({
         "model": model.strip(),
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_payload},
+            {
+                "role": "user",
+                "content": (
+                    [{"type": "text", "text": user_payload},
+                     {"type": "image_url", "image_url": {"url": validated_image, "detail": "high"}}]
+                    if validated_image else user_payload
+                ),
+            },
         ],
         "temperature": 0.1,
     }).encode("utf-8")
@@ -301,6 +349,7 @@ class PlanTaskRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=4000)
     model: str | None = Field(default=None, max_length=200)
     engine: str = Field(default="planner", pattern="^(planner|openhands)$")
+    design_image_data_url: str | None = Field(default=None, max_length=3_000_000)
 
 
 def _require_api_token(authorization: str | None = Header(default=None)) -> None:
@@ -370,6 +419,8 @@ def api_create_plan(
     _: None = Depends(_require_api_token),
 ) -> dict[str, Any]:
     workspace = _resolve_project_workspace(project_id)
+    if body.engine == "openhands" and body.design_image_data_url:
+        raise HTTPException(status_code=400, detail="Image-based design planning currently uses the vision-capable planner. Turn off OpenHands for this task.")
     if body.engine == "openhands":
         model = (body.model or os.environ.get("VYOMA_OPENHANDS_MODEL", "")).strip()
         try:
@@ -387,7 +438,10 @@ def api_create_plan(
     else:
         endpoint, model, key = _provider_settings(body.model)
         try:
-            plan = plan_code_changes(workspace, body.goal, endpoint=endpoint, model=model, api_key=key)
+            plan = plan_code_changes(
+                workspace, body.goal, endpoint=endpoint, model=model, api_key=key,
+                design_image_data_url=body.design_image_data_url,
+            )
         except CodingAgentError as exc:
             write_audit_event(
                 "plan_failed", project_id=project_id, status="FAILED",
