@@ -389,3 +389,53 @@ def test_api_multi_file_undo_restores_complete_change_set(tmp_path: Path, monkey
     assert undone.json()["status"] == "UNDONE"
     assert first.read_text(encoding="utf-8") == "main original\\n"
     assert second.read_text(encoding="utf-8") == "settings original\\n"
+
+
+def test_planner_sends_valid_design_image_as_vision_content(tmp_path: Path, monkeypatch):
+    payload = {"summary": "Implement screenshot layout", "changes": []}
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse(provider_envelope(json.dumps(payload)))
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    png = b"\\x89PNG\\r\\n\\x1a\\n" + b"test-image-bytes"
+    data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    plan_code_changes(
+        tmp_path, "Build this screen in Jetpack Compose",
+        endpoint="https://provider.example/v1/chat/completions",
+        model="vision-model", api_key="test-key", design_image_data_url=data_url,
+    )
+    content = captured["body"]["messages"][1]["content"]
+    assert isinstance(content, list)
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"] == data_url
+    assert "Jetpack Compose" in content[0]["text"]
+
+
+def test_planner_rejects_invalid_design_image_before_provider_call(tmp_path: Path, monkeypatch):
+    called = False
+
+    def fake_urlopen(request, timeout):
+        nonlocal called
+        called = True
+        return FakeResponse(provider_envelope('{"summary":"ok","changes":[]}'))
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    with pytest.raises(CodingAgentError, match="PNG, JPEG, or WebP"):
+        plan_code_changes(
+            tmp_path, "Build screen", endpoint="https://provider.example/v1/chat/completions",
+            model="vision-model", api_key="test-key", design_image_data_url="data:image/gif;base64,R0lGODlh",
+        )
+    assert called is False
+
+
+def test_planner_rejects_design_image_over_two_megabytes(tmp_path: Path):
+    png = b"\\x89PNG\\r\\n\\x1a\\n" + b"x" * (2 * 1024 * 1024)
+    data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    with pytest.raises(CodingAgentError, match="2 MB"):
+        plan_code_changes(
+            tmp_path, "Build screen", endpoint="https://provider.example/v1/chat/completions",
+            model="vision-model", api_key="test-key", design_image_data_url=data_url,
+        )
