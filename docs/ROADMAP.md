@@ -52,6 +52,20 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** a coding-agent task proposes a scoped diff, waits for approval, applies safely, and returns verifiable checks. This increment provides the workspace safety boundary only; it is not yet an autonomous agent.
 
+
+## M4.2 — Image-to-UI and design connectors
+- [x] Attach PNG/JPEG/WebP reference images to coding tasks in Android
+- [x] Validate image type/signature/size in backend before vision-model use
+- [x] Send image as multimodal input to vision-capable planner
+- [x] Keep image-driven code changes behind the same diff approval gate
+- [x] Document Figma, Canva, Supabase and GitHub connector architecture and provider restrictions
+- [ ] Verify with a real vision model and reference screenshot
+- [ ] Normalize imported designs into project-owned design tokens/components
+- [ ] Implement per-user OAuth and connector lifecycle UI for Figma/Canva/Supabase/GitHub
+- [ ] Add isolated Compose preview/render-and-compare loop
+
+**Exit gate:** an uploaded design produces a reviewable native Compose diff, then a built preview that can be compared with the reference; external connector writes require explicit approval.
+
 ## M2 — Workspace and durable project memory
 - [ ] Project workspace with chat, preview, files/diff, tests, and activity
 - [ ] Define versioned memory records and provenance
