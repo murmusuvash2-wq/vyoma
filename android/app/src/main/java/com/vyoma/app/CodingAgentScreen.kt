@@ -1,6 +1,7 @@
 package com.vyoma.app
 
 import android.util.Base64
+import java.io.ByteArrayOutputStream
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -65,8 +66,21 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                         "Choose a PNG, JPEG, or WebP screenshot."
                     }
                     val bytes = withContext(Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.use { it.readBytes(2 * 1024 * 1024 + 1) }
-                            ?: throw IllegalStateException("Could not read the selected image.")
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 2 * 1024 * 1024) {
+                                    "Design images must be 2 MB or smaller. Please crop or resize the screenshot."
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toByteArray()
+                        } ?: throw IllegalStateException("Could not read the selected image.")
                     }
                     require(bytes.isNotEmpty() && bytes.size <= 2 * 1024 * 1024) {
                         "Design images must be 2 MB or smaller. Please crop or resize the screenshot."
