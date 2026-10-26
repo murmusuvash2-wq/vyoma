@@ -49,7 +49,7 @@ The Android client requires HTTPS for the backend URL. For device testing, use a
 - The bearer token is a shared development gate, not per-user authentication or project ownership authorization. Any holder of the token may access endpoints within the configured workspace root.
 - SQLite task persistence is single-node development persistence; it is not multi-user tenancy, distributed locking, or a production task/audit database.
 - The OpenHands adapter has mocked CI coverage but has not been live-validated against a real model/provider. A temporary directory is not a security sandbox.
-- Multi-file apply has preflight/stale checks and rollback attempts, but there is no durable task-wide checkpoint, user-visible undo, or guaranteed recovery if the underlying filesystem fails during rollback.
+- Multi-file apply and undo have preflight/stale checks and rollback attempts, but there is no durable task-wide checkpoint or guaranteed recovery if the underlying filesystem fails during rollback.
 - No shell execution, Gradle build/test execution, isolated Agent Server/container, GitHub repository authorization, APK artifact delivery, quotas, or production user authentication is implemented.
 - The Android Coding Agent screen is a one-task-at-a-time planning/review surface, not yet the persistent conversational Chat-to-App Builder. It does not dynamically update the approved blueprint, render a live generated app preview, or build/download an APK.
 - Source import supports bounded UTF-8 text/source files only; binary assets, Git metadata, build outputs and signing/secret files are intentionally excluded.
