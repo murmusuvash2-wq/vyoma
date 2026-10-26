@@ -119,7 +119,7 @@ def plan_code_changes(
 
     validated_image = _validated_design_image(design_image_data_url)
     root = Path(workspace_root).expanduser().resolve(strict=True)
-    file_context: list[dict[str, str]] =
+    file_context: list[dict[str, str]] = []
     used = 0
     for relative_path in list_files(root, limit=100):
         try:
