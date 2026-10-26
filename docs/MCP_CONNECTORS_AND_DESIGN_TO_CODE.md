@@ -58,6 +58,7 @@ Official docs:
 - https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/
 
 ### 2. Canva — visual assets and brand kit
+Official Canva MCP endpoint: https://api.canva.com/connect/v1/mcp
 Official Canva MCP documentation: https://www.canva.dev/docs/apps/mcp/
 - Use for searching user-owned designs/templates, brand kits/assets, creating/editing designs, and exporting approved assets.
 - First milestone: search/import assets and export PNG/SVG where supported; store asset metadata and attribution/provenance in the project.
@@ -67,12 +68,14 @@ Official Canva MCP documentation: https://www.canva.dev/docs/apps/mcp/
 Official docs:
 - https://www.canva.dev/docs/apps/mcp/
 - https://www.canva.com/help/mcp-canva-usage/
+- Canva requires an app registered in its Developer Portal with MCP enabled, client credentials and individual user OAuth authorization. Each user connects their own Canva account.
 
 ### 3. Supabase — generated app backend
+Official Supabase MCP endpoint: https://mcp.supabase.com/mcp
 Official Supabase MCP overview: https://supabase.com/features/mcp-server
 - Use a separate connector for schema inspection, migration drafts, type generation, and read-only logs/advisors.
 - Start read-only. Propose SQL migrations as files/diffs; do not execute production DDL or data writes without explicit approval.
-- Prefer a development branch/project for testing; never expose service-role credentials to the Android client or model context.
+- Configure the hosted server with project_ref=<verified-project-id>, read_only=true, and only the required features (for example database,docs). Prefer a development branch/project for writes; never expose service-role credentials to the Android client or model context.
 - Bind each connection to a verified user-owned project ID and enforce tool-level project scope.
 
 Official docs:
@@ -90,6 +93,11 @@ Official docs:
 - Do not allow arbitrary user-supplied MCP endpoints by default; use an admin-approved server registry to reduce SSRF and malicious-server risk.
 - Filter secrets and personal data from tool outputs before sending context to the model.
 - Add connect/disconnect, re-authenticate, inspect permissions, revoke, and audit-history UI.
+
+## UI reference research
+
+- Android Studio's official image-to-UI workflow accepts a screenshot or hand-drawn mockup and generates Jetpack Compose UI. Use it as a quality reference for the image-input flow, not as a dependency: https://developer.android.com/studio/gemini/generate-ui-with-images
+- For design-to-code quality, Figma's MCP guidance recommends semantic layer names, reusable components, variables, Auto Layout, and Code Connect so the generator has more than pixels to guess from: https://github.com/figma/mcp-server-guide/blob/main/README.md
 
 ## Recommended staged delivery
 
