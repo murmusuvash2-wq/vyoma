@@ -48,6 +48,7 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
     var goal by remember { mutableStateOf("") }
     var designImageDataUrl by remember { mutableStateOf<String?>(null) }
     var designImageLabel by remember { mutableStateOf<String?>(null) }
+    var importedZipLabel by remember { mutableStateOf<String?>(null) }
     var useOpenHands by remember { mutableStateOf(true) }
     var consentToSendSource by remember { mutableStateOf(false) }
     var task by remember { mutableStateOf<CodingAgentTask?>(null) }
@@ -93,6 +94,54 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     designImageDataUrl = null
                     designImageLabel = null
                     error = t.message ?: "Could not attach the design image."
+                } finally {
+                    busy = false
+                }
+            }
+        }
+    }
+
+    val sourceZipPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                busy = true
+                error = null
+                try {
+                    val mime = context.contentResolver.getType(uri)?.lowercase()
+                    require(mime == null || mime in setOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) {
+                        "Choose a ZIP archive containing source files."
+                    }
+                    val archiveBase64 = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 10 * 1024 * 1024) {
+                                    "ZIP archive must be 10 MB or smaller."
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            require(total > 0) { "The selected ZIP archive is empty." }
+                            Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                        } ?: throw IllegalStateException("Could not read the selected ZIP archive.")
+                    }
+                    val count = CodingAgentApiClient.importProjectZip(
+                        backendUrl, bearerToken, projectId, archiveBase64
+                    )
+                    importedZipLabel = "Imported $count source files into project $projectId"
+                    task = CodingAgentTask(
+                        taskId = "",
+                        projectId = projectId,
+                        status = "READY",
+                        summary = "$count source files imported. You can now ask Vyoma to propose a change.",
+                        changes = emptyList()
+                    )
+                } catch (t: Throwable) {
+                    error = t.message ?: "Could not import the ZIP archive."
                 } finally {
                     busy = false
                 }
@@ -183,6 +232,17 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                 }
                 Text(
                     "Creates an empty workspace on the configured backend. It does not generate an app or upload local files.",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+                OutlinedButton(
+                    onClick = { sourceZipPicker.launch("application/zip") },
+                    enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank() && projectId.isNotBlank()
+                ) {
+                    if (busy) CircularProgressIndicator(strokeWidth = 2.dp) else Text("Import source ZIP")
+                }
+                Text(
+                    importedZipLabel ?: "Import a ZIP into an empty project. Limit: 10 MB compressed; UTF-8 source/text files only. Secrets, signing files, binaries and build outputs are rejected.",
                     color = Muted,
                     fontSize = 12.sp
                 )
