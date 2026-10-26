@@ -131,3 +131,11 @@ Endpoint: `POST /v1/projects/{project_id}/import-zip` with JSON `{"archive_base6
 - The Android Coding Agent screen now shows an Undo approved change action for successful one-file tasks and displays the UNDONE state.
 - Added API tests for successful restore, duplicate undo rejection, and conflict protection.
 - This is not a durable multi-file checkpoint system. Multi-file undo remains blocked until a transactional restore design is added.
+
+
+## Latest increment: multi-file undo
+- Undo now preflights the complete approved change set and refuses to mutate any file if one target no longer matches the agent-applied version.
+- Original file contents are staged before restoration; newly created files are removed only when their current content matches the approved version.
+- If an operation fails after mutation begins, rollback of applied versions is attempted and a clear error is returned if recovery is incomplete.
+- Added tests for multi-file restore, no-partial-mutation on stale content, and explicit approval.
+- This remains filesystem-level development recovery, not a durable checkpoint or guaranteed transaction across hardware/process crashes.
