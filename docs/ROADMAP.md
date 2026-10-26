@@ -47,7 +47,7 @@ Status reflects repository evidence, not intended design. A screen or documentat
 - [x] Add development bearer-token task API and local SQLite task persistence; [ ] add per-user authorization, quotas and production audit database
 - [x] Connect Android Coding Agent UI to the backend with an OpenHands engine option and explicit approval/rejection
 - [x] Add basic SQLite audit events for task creation and proposal decisions (development-only, shared-token auth)
-- [x] Add a single-file task undo endpoint and Android UI with conflict detection after an approved change
+- [x] Add task undo endpoint and Android UI for single-file and multi-file changes with stale-content conflict detection
 - [ ] Add task-wide durable checkpoints and isolated build-worker execution
 
 **Exit gate:** a coding-agent task proposes a scoped diff, waits for approval, applies safely, and returns verifiable checks. This increment provides the workspace safety boundary only; it is not yet an autonomous agent.
