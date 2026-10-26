@@ -439,3 +439,19 @@ def test_planner_rejects_design_image_over_two_megabytes(tmp_path: Path):
             tmp_path, "Build screen", endpoint="https://provider.example/v1/chat/completions",
             model="vision-model", api_key="test-key", design_image_data_url=data_url,
         )
+
+
+def test_connector_catalog_is_authenticated_and_contains_allowlisted_providers(monkeypatch):
+    monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", "catalog-test-token")
+    client = TestClient(coding_agent_module.api)
+    denied = client.get("/v1/connectors/catalog")
+    assert denied.status_code == 401
+    response = client.get(
+        "/v1/connectors/catalog",
+        headers={"Authorization": "Bearer catalog-test-token"},
+    )
+    assert response.status_code == 200
+    connectors = {item["connector_id"]: item for item in response.json()["connectors"]}
+    assert {"figma", "canva", "supabase", "github"} <= connectors.keys()
+    assert connectors["supabase"]["initial_access"] == "read-only initially"
+    assert all("token" not in key.lower() and "secret" not in key.lower() for item in connectors.values() for key in item)
