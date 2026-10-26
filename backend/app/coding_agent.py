@@ -251,6 +251,7 @@ from pydantic import BaseModel, Field
 from app.openhands_runtime import OpenHandsRuntimeError, run_openhands_plan
 from app.agent_workspace import apply_approved_changes, restore_applied_changes
 from app.audit import write_audit_event
+from app.connector_catalog import list_connector_catalog
 
 api = FastAPI(title="Vyoma Coding Agent API", version="0.1.0")
 _PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -410,6 +411,12 @@ def _task_json(task: dict[str, Any]) -> dict[str, Any]:
 @api.get("/health")
 def api_health() -> dict[str, str]:
     return {"status": "ok", "mode": "development-foundation"}
+
+
+@api.get("/v1/connectors/catalog")
+def api_connector_catalog(_: None = Depends(_require_api_token)) -> dict[str, Any]:
+    """Return the fixed provider allowlist; this does not imply providers are connected."""
+    return {"connectors": list_connector_catalog()}
 
 
 @api.post("/v1/projects/{project_id}/tasks/plan")
