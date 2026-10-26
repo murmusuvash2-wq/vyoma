@@ -31,7 +31,8 @@ internal object CodingAgentApiClient {
         bearerToken: String,
         projectId: String,
         goal: String,
-        engine: String = "planner"
+        engine: String = "planner",
+        designImageDataUrl: String? = null
     ): CodingAgentTask {
         require(projectId.matches(Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"))) {
             "Project ID may contain only letters, numbers, underscores and hyphens."
@@ -41,7 +42,9 @@ internal object CodingAgentApiClient {
             bearerToken = bearerToken,
             path = "/v1/projects/${projectId.trim()}/tasks/plan",
             method = "POST",
-            body = JSONObject().put("goal", goal.trim()).put("engine", engine)
+            body = JSONObject().put("goal", goal.trim()).put("engine", engine).apply {
+                if (!designImageDataUrl.isNullOrBlank()) put("design_image_data_url", designImageDataUrl)
+            }
         )
     }
 
