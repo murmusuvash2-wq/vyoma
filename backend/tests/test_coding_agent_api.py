@@ -168,3 +168,48 @@ def test_reject_restores_task_from_sqlite_after_cache_loss(monkeypatch, tmp_path
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "REJECTED"
     assert (project / "Main.kt").read_text(encoding="utf-8") == "fun main() = Unit\n"
+
+
+def test_undo_restores_original_file_after_approved_change(monkeypatch, tmp_path: Path):
+    token, project = configure(monkeypatch, tmp_path)
+    original = "fun main() = Unit\\n"
+    proposed = 'fun main() = println("hello")\\n'
+    proposal = propose_file_change(project, "Main.kt", proposed)
+    plan = coding_agent.CodingPlan("Update greeting", (proposal,), ("Show greeting",))
+    monkeypatch.setattr(coding_agent, "plan_code_changes", lambda *args, **kwargs: plan)
+    headers = {"Authorization": f"Bearer {token}"}
+    created = client.post(
+        "/v1/projects/sample/tasks/plan", headers=headers, json={"goal": "Update greeting"}
+    )
+    task_id = created.json()["task_id"]
+    approved = client.post(f"/v1/tasks/{task_id}/approve", headers=headers)
+    assert approved.status_code == 200
+    assert (project / "Main.kt").read_text(encoding="utf-8") == proposed
+
+    undone = client.post(f"/v1/tasks/{task_id}/undo", headers=headers)
+    assert undone.status_code == 200
+    assert undone.json()["status"] == "UNDONE"
+    assert (project / "Main.kt").read_text(encoding="utf-8") == original
+    duplicate = client.post(f"/v1/tasks/{task_id}/undo", headers=headers)
+    assert duplicate.status_code == 409
+
+
+def test_undo_refuses_to_overwrite_changes_made_after_approval(monkeypatch, tmp_path: Path):
+    token, project = configure(monkeypatch, tmp_path)
+    proposal = propose_file_change(project, "Main.kt", 'fun main() = println("agent edit")\\n')
+    plan = coding_agent.CodingPlan("Update greeting", (proposal,), ("Show greeting",))
+    monkeypatch.setattr(coding_agent, "plan_code_changes", lambda *args, **kwargs: plan)
+    headers = {"Authorization": f"Bearer {token}"}
+    created = client.post(
+        "/v1/projects/sample/tasks/plan", headers=headers, json={"goal": "Update greeting"}
+    )
+    task_id = created.json()["task_id"]
+    approved = client.post(f"/v1/tasks/{task_id}/approve", headers=headers)
+    assert approved.status_code == 200
+
+    newer_content = "fun main() = println(\\"manual edit\\")\\n"
+    (project / "Main.kt").write_text(newer_content, encoding="utf-8")
+    undone = client.post(f"/v1/tasks/{task_id}/undo", headers=headers)
+    assert undone.status_code == 409
+    assert (project / "Main.kt").read_text(encoding="utf-8") == newer_content
+    assert client.get(f"/v1/tasks/{task_id}", headers=headers).json()["status"] == "SUCCEEDED"
