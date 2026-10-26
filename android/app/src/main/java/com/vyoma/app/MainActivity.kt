@@ -75,9 +75,9 @@ import kotlinx.coroutines.launch
 internal val Mint = Color(0xFFBDF4D3)
 internal val Green = Color(0xFF247451)
 internal val Navy = Color(0xFF132B3A)
-internal val Cream = Color(0xFFF8F8F2)
-internal val Muted = Color(0xFF6E7C82)
-internal val Line = Color(0xFFE5EAE6)
+internal val Cream = Color(0xFFF5F5F7)
+internal val Muted = Color(0xFF6E6E73)
+internal val Line = Color(0xFFE5E5EA)
 
 private data class StarterTemplate(
     val title: String,
