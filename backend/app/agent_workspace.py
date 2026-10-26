@@ -230,6 +230,79 @@ def restore_applied_change(
             raise WorkspaceError("File changed while undo was being prepared; retry after review.")
         path.unlink()
 
+
+def restore_applied_changes(
+    workspace_root: str | Path,
+    proposals: list[FileChangeProposal] | tuple[FileChangeProposal, ...],
+    *,
+    approved: bool,
+) -> None:
+    """Restore a complete change set only when every file still matches the applied version."""
+    if approved is not True:
+        raise WorkspaceError("Explicit user approval is required before undoing changes.")
+    if not proposals:
+        raise WorkspaceError("At least one applied change is required to undo.")
+    root = _root_path(workspace_root)
+    prepared: list[tuple[FileChangeProposal, Path]] = []
+    seen: set[str] = set()
+    for proposal in proposals:
+        normalized = Path(proposal.relative_path).as_posix()
+        if normalized in seen:
+            raise WorkspaceError("An undo set cannot contain duplicate paths.")
+        seen.add(normalized)
+        path = _resolve_inside(root, proposal.relative_path, allow_missing=False)
+        if not path.is_file() or path.stat().st_size > MAX_FILE_BYTES:
+            raise WorkspaceError("An undo target is no longer a bounded regular file.")
+        try:
+            current = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            raise WorkspaceError("An undo target is no longer readable UTF-8 text.") from None
+        if current != proposal.proposed_content:
+            raise WorkspaceError("A file changed after the approved edit; undo was refused to protect newer work.")
+        if proposal.original_exists and proposal.original_content is None:
+            raise WorkspaceError("Saved original content is missing.")
+        prepared.append((proposal, path))
+    staged: list[tuple[Path, Path, FileChangeProposal]] = []
+    changed: list[tuple[Path, FileChangeProposal]] = []
+    try:
+        for proposal, path in prepared:
+            if proposal.original_exists:
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="", delete=False, dir=path.parent, prefix=".vyoma-undo-stage-") as handle:
+                    handle.write(proposal.original_content or "")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                    staged.append((Path(handle.name), path, proposal))
+        for proposal, path in prepared:
+            if not path.is_file() or path.read_text(encoding="utf-8") != proposal.proposed_content:
+                raise WorkspaceError("A file changed while undo was being prepared; retry after review.")
+        staged_by_path = {target: temporary for temporary, target, _ in staged}
+        for proposal, path in prepared:
+            if proposal.original_exists:
+                os.replace(staged_by_path[path], path)
+            else:
+                path.unlink()
+            changed.append((path, proposal))
+    except Exception as exc:
+        rollback_failed = False
+        for path, proposal in reversed(changed):
+            try:
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="", delete=False, dir=path.parent, prefix=".vyoma-undo-rollback-") as handle:
+                    handle.write(proposal.proposed_content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                    rollback_path = Path(handle.name)
+                os.replace(rollback_path, path)
+            except OSError:
+                rollback_failed = True
+        if rollback_failed:
+            raise WorkspaceError("Undo rollback was incomplete; discard this workspace and recover from a checkpoint.") from None
+        if isinstance(exc, WorkspaceError):
+            raise
+        raise WorkspaceError("Could not undo the complete change set; rollback was attempted.") from None
+    finally:
+        for temporary, _, _ in staged:
+            temporary.unlink(missing_ok=True)
+
 def apply_approved_changes(
     workspace_root: str | Path,
     proposals: list[FileChangeProposal] | tuple[FileChangeProposal, ...],
