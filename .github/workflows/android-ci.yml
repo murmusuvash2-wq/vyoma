@@ -6,6 +6,7 @@ on:
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
+      - ".github/workflows/android-apk-release.yml"
   pull_request:
     paths:
       - "android/**"

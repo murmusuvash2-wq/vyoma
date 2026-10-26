@@ -4,18 +4,23 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: Version name for a signed APK (for example 0.1.2)
+        description: Version name for a signed APK (for example 0.1.4)
         required: true
         default: 0.1.4
   push:
     branches:
       - main
       - "feature/approved-homepage-layout"
+      - "feature/zip-release-completion"
     tags:
       - "v*"
 
 permissions:
   contents: write
+
+concurrency:
+  group: vyoma-apk-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-apk:
@@ -61,8 +66,10 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         shell: bash
         run: |
+          mkdir -p "$(dirname "$ANDROID_KEYSTORE_PATH")"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           test -s "$ANDROID_KEYSTORE_PATH"
+          chmod 600 "$ANDROID_KEYSTORE_PATH"
 
       - name: Set build version
         id: version
@@ -86,7 +93,7 @@ jobs:
         working-directory: android
         run: gradle --no-daemon assembleRelease -PvyomaVersionName="${{ steps.version.outputs.name }}" -PvyomaVersionCode="${{ steps.version.outputs.code }}"
 
-      - name: Verify APK signature
+      - name: Verify APK signature and identity
         shell: bash
         run: |
           APK="android/app/build/outputs/apk/release/app-release.apk"
@@ -96,32 +103,95 @@ jobs:
           APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
+          AAPT="$(find "$SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.vyoma.app'"
 
-      - name: Prepare signed APK and checksum
+      - name: Prepare ZIP distribution bundle
+        id: package
         shell: bash
         run: |
-          mkdir -p release-output
-          cp android/app/build/outputs/apk/release/app-release.apk "release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
-          sha256sum "release-output/Vyoma-${{ steps.version.outputs.name }}.apk" > release-output/SHA256SUMS.txt
+          VERSION="${{ steps.version.outputs.name }}"
+          VERSION_CODE="${{ steps.version.outputs.code }}"
+          COMMIT="$GITHUB_SHA"
+          OUT="release-output"
+          BUNDLE="$OUT/Vyoma-${VERSION}-Android"
+          mkdir -p "$BUNDLE"
+          cp android/app/build/outputs/apk/release/app-release.apk "$BUNDLE/Vyoma-${VERSION}.apk"
+          cp "$BUNDLE/Vyoma-${VERSION}.apk" "$OUT/Vyoma-${VERSION}.apk"
+          cat > "$BUNDLE/README-INSTALL.txt" <<EOF
+          VYOMA ANDROID APK — INSTALL / UPDATE
+
+          Version: ${VERSION}
+          Version code: ${VERSION_CODE}
+          Package ID: com.vyoma.app
+          Source commit: ${COMMIT}
+
+          INSTALL
+          1. Extract this ZIP on your Android phone.
+          2. Open Vyoma-${VERSION}.apk.
+          3. If Android asks, allow this file manager/browser to install unknown apps.
+          4. Return to the installer and complete installation.
+
+          UPDATE
+          Install over an existing Vyoma only if the existing app has the same package ID
+          and was signed with the same compatible release certificate. If Android says
+          "App not installed" or reports a signature conflict, do not uninstall first:
+          that may erase local app data. Confirm the signing certificate before proceeding.
+
+          VERIFY
+          Use SHA256SUMS.txt with sha256sum (Linux/macOS) or an equivalent SHA-256 tool.
+          Do not install the APK if the checksum does not match.
+
+          SECURITY
+          This ZIP contains the signed APK, checksum, and build metadata. It does not
+          contain the release keystore or any signing passwords.
+          EOF
+          printf '{\n  "appId": "com.vyoma.app",\n  "versionName": "%s",\n  "versionCode": %s,\n  "sourceCommit": "%s",\n  "builtAtUtc": "%s",\n  "signing": "stable-release",\n  "apk": "Vyoma-%s.apk"\n}\n'             "$VERSION" "$VERSION_CODE" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" > "$BUNDLE/build-info.json"
+          (cd "$BUNDLE" && sha256sum "Vyoma-${VERSION}.apk" > SHA256SUMS.txt)
+          cp "$BUNDLE/SHA256SUMS.txt" "$OUT/SHA256SUMS-${VERSION}.txt"
+          (cd "$OUT" && zip -qr "Vyoma-${VERSION}-Android.zip" "Vyoma-${VERSION}-Android")
+          test -s "$OUT/Vyoma-${VERSION}-Android.zip"
+          (cd "$OUT" && sha256sum "Vyoma-${VERSION}-Android.zip" > "SHA256SUMS-ZIP-${VERSION}.txt")
+          echo "bundle=$OUT/Vyoma-${VERSION}-Android.zip" >> "$GITHUB_OUTPUT"
+
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/feature/approved-homepage-layout" ]]; then
-            cp android/app/build/outputs/apk/release/app-release.apk release-output/Vyoma-latest-test.apk
-            APK_SHA256="$(sha256sum release-output/Vyoma-latest-test.apk | awk '{print $1}')"
-            printf '%s  %s\n' "$APK_SHA256" "Vyoma-latest-test.apk" > release-output/SHA256SUMS-latest-test.txt
-            printf '{\n  "versionName": "%s",\n  "versionCode": %s,\n  "commit": "%s",\n  "apkUrl": "https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/Vyoma-latest-test.apk",\n  "sha256": "%s"\n}\n' \
-              "${{ steps.version.outputs.name }}" "${{ steps.version.outputs.code }}" "$GITHUB_SHA" "$APK_SHA256" > release-output/latest-test.json
+            cp "$BUNDLE/Vyoma-${VERSION}.apk" "$OUT/Vyoma-latest-test.apk"
+            cp "$OUT/Vyoma-${VERSION}-Android.zip" "$OUT/Vyoma-latest-test-Android.zip"
+            APK_SHA256="$(sha256sum "$OUT/Vyoma-latest-test.apk" | awk '{print $1}')"
+            ZIP_SHA256="$(sha256sum "$OUT/Vyoma-latest-test-Android.zip" | awk '{print $1}')"
+            printf '%s  %s\n' "$APK_SHA256" "Vyoma-latest-test.apk" > "$OUT/SHA256SUMS-latest-test.txt"
+            printf '%s  %s\n' "$ZIP_SHA256" "Vyoma-latest-test-Android.zip" >> "$OUT/SHA256SUMS-latest-test.txt"
+            printf '{\n  "versionName": "%s",\n  "versionCode": %s,\n  "commit": "%s",\n  "apkUrl": "https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/Vyoma-latest-test.apk",\n  "zipUrl": "https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/Vyoma-latest-test-Android.zip",\n  "sha256Apk": "%s",\n  "sha256Zip": "%s"\n}\n'               "$VERSION" "$VERSION_CODE" "$COMMIT" "$APK_SHA256" "$ZIP_SHA256" > "$OUT/latest-test.json"
           fi
 
-      - name: Upload signed APK artifact for testing
+      - name: Upload signed APK and ZIP artifacts
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'branch')
         uses: actions/upload-artifact@v4
         with:
-          name: vyoma-signed-apk-${{ steps.version.outputs.name }}
-          path: release-output/*
+          name: vyoma-android-${{ steps.version.outputs.name }}-signed-bundle
+          path: |
+            release-output/Vyoma-${{ steps.version.outputs.name }}.apk
+            release-output/Vyoma-${{ steps.version.outputs.name }}.apk
+            release-output/Vyoma-${{ steps.version.outputs.name }}-Android.zip
+            release-output/SHA256SUMS-ZIP-${{ steps.version.outputs.name }}.txt
+            release-output/SHA256SUMS-${{ steps.version.outputs.name }}.txt
           if-no-files-found: error
           retention-days: 14
 
-      # Mutable tag is intentionally limited to the testing channel. It always points
-      # to the exact commit used for the latest feature-branch APK, never a production release.
+      - name: Upload latest-test channel artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/approved-homepage-layout'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyoma-latest-test-apk-and-zip
+          path: |
+            release-output/Vyoma-latest-test.apk
+            release-output/Vyoma-latest-test-Android.zip
+            release-output/SHA256SUMS-latest-test.txt
+            release-output/latest-test.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Move latest-test channel tag to this commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/feature/approved-homepage-layout'
         shell: bash
@@ -129,7 +199,7 @@ jobs:
           git tag --force latest-test "$GITHUB_SHA"
           git push --force origin refs/tags/latest-test
 
-      - name: Publish or update one-click latest test APK
+      - name: Publish or update latest test APK and ZIP
         if: github.event_name == 'push' && github.ref == 'refs/heads/feature/approved-homepage-layout'
         uses: softprops/action-gh-release@v2
         with:
@@ -141,14 +211,16 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             release-output/Vyoma-latest-test.apk
+            release-output/Vyoma-latest-test-Android.zip
             release-output/SHA256SUMS-latest-test.txt
             release-output/latest-test.json
           body: |
-            Automatically refreshed test APK from the feature/approved-homepage-layout branch.
+            Automatically refreshed test APK and ZIP from the feature/approved-homepage-layout branch.
             Source commit: ${{ github.sha }}
             This is a testing build, not a production release.
+            The ZIP contains the APK, install/update instructions, build metadata, and checksum.
             Verify SHA-256 using SHA256SUMS-latest-test.txt.
-            Android may ask you to confirm installation. This workflow does not silently install updates.
+            Android still requires user confirmation for app installation/updates; updates are not silent.
 
       - name: Publish GitHub Release for version tag
         if: github.ref_type == 'tag'
@@ -156,8 +228,13 @@ jobs:
         with:
           name: Vyoma ${{ steps.version.outputs.name }}
           generate_release_notes: true
-          files: release-output/*
+          files: |
+            release-output/Vyoma-${{ steps.version.outputs.name }}-Android.zip
+            release-output/SHA256SUMS-ZIP-${{ steps.version.outputs.name }}.txt
+            release-output/SHA256SUMS-${{ steps.version.outputs.name }}.txt
+            release-output/Vyoma-${{ steps.version.outputs.name }}-Android/
           body: |
-            Signed APK build for Vyoma ${{ steps.version.outputs.name }}.
+            Signed Android distribution bundle for Vyoma ${{ steps.version.outputs.name }}.
             Stable release signing is required; debug-signed fallback is disabled.
-            SHA-256 checksum is included in SHA256SUMS.txt.
+            ZIP includes APK, install/update instructions, build metadata, and SHA-256 checksum.
+            Verify the ZIP using SHA256SUMS-ZIP-${{ steps.version.outputs.name }}.txt.
