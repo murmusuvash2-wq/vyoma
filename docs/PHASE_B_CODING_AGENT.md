@@ -1,0 +1,153 @@
+# Phase B — Coding-agent foundation
+
+## Implemented in this increment
+- Restricted task-workspace file listing and UTF-8 source reading.
+- Provider-backed planner sends bounded project context to an HTTPS OpenAI-compatible chat-completions endpoint and expects structured JSON.
+- Model output becomes a reviewable file-change proposal and unified diff; planning itself never mutates source files.
+- Development FastAPI endpoints provide plan creation, task lookup, explicit approval, and rejection.
+- Task status and full reviewable proposals are stored in a local SQLite database so tasks can be recovered after backend restart; the database path is configurable with `VYOMA_TASK_DB_PATH`.
+- API uses a configured server-side bearer token and validates project IDs under a configured workspace root; clients cannot supply arbitrary filesystem paths.
+- Applying a proposed change set preflights all paths and original contents, stages replacements, rechecks for stale edits, and attempts rollback if a replacement fails. This is not yet a durable task-wide checkpoint/undo system; rollback failure still requires discarding the worker/workspace.
+- Unit tests use a mocked provider; no real AI key is required for CI.
+
+## Run locally
+From the backend directory install requirements-dev.txt. Configure VYOMA_BACKEND_API_TOKEN, VYOMA_WORKSPACE_ROOT, VYOMA_AI_ENDPOINT, VYOMA_AI_MODEL, and VYOMA_AI_API_KEY as server-side environment variables. Never commit or pass the provider key to Android.
+
+Run the development API on localhost with:
+uvicorn app.coding_agent:api --host 127.0.0.1 --port 8000
+
+Do not expose this service publicly.
+
+## Architecture decision
+OpenHands Software Agent SDK remains the candidate for the future main coding-agent runtime. Current provider planner is not the OpenHands SDK and is not an autonomous tool-using agent. No shell command execution is implemented.
+
+## Security/production gates
+1. Add per-user authentication and project ownership authorization.
+2. Provision disposable isolated workspaces; never accept client-provided server filesystem paths.
+3. Add durable task state, audit events, quotas, cancellation, and redacted observability.
+4. Integrate OpenHands behind the narrow workspace tools; do not give the model unrestricted shell access.
+5. Keep explicit human approval before file writes and external GitHub changes.
+6. Keep strengthening transactional multi-file changes and add durable task-wide checkpoints, user-visible undo, and stale revision protection.
+7. Run builds/tests in an isolated worker with CPU, memory, network, time and cost limits.
+8. Connect Android task UI and diff review to the authenticated API.
+9. Add cloud Gradle builds and APK artifact delivery only after worker isolation and security gates pass.
+
+## Latest increment: reject a plan safely\n- Added an authenticated reject endpoint for plans awaiting approval.\n- Rejection records an audit event and changes task status to REJECTED without applying any file changes.\n- Added a native Reject plan action and a test that verifies workspace contents remain unchanged.\n\n## Source-code sharing consent
+
+The Android Coding Agent screen now discloses that the task prompt and selected workspace source contents are sent to the AI provider configured on the backend. The user must opt in via a checkbox before creating a plan. This is a development safeguard, not a substitute for data minimization, provider review, per-user authorization, or production privacy controls.
+
+## Acceptance status
+- [x] Workspace safety tools and reviewable diffs
+- [x] Provider-backed planning with response/path validation
+- [x] Authenticated development API for plan/status/approval
+- [x] Unit tests and backend CI passing on the current branch
+- [x] OpenHands SDK adapter using FileEditorTool + TaskTrackerTool in a disposable copy, without a terminal tool
+- [ ] Live-test the OpenHands SDK against a disposable sample project and real provider credentials
+- [ ] Per-user authentication and durable task storage
+- [x] Initial Android Coding Agent screen wired to plan, complete change-set approval, and plan rejection
+- [x] Android task status refresh control calls the authenticated task lookup endpoint
+- [x] Restore task state and proposals after backend restart using local SQLite (single-node development only; no multi-user tenancy or distributed locking)
+- [ ] Android task persistence, refresh/status recovery, and richer diff review UI
+- [x] Transactional multi-file apply with preflight checks, stale-content recheck, rollback attempt, and metadata audit events
+- [ ] Durable task-wide checkpoints, user-visible undo, and audit-history UI
+- [ ] Isolated build worker and APK delivery
+
+This is progress toward Phase B, not a complete coding agent or production-ready backend.
+
+
+## OpenHands SDK integration (development-only)
+
+The API accepts `engine: "openhands"` on the existing plan endpoint. The Android Coding Agent screen exposes a Use OpenHands SDK checkbox. The backend adapter builds a disposable copy containing only bounded, supported source/text files, starts an OpenHands SDK conversation with `FileEditorTool` and `TaskTrackerTool`, and intentionally does not register `TerminalTool`. It compares the copy with its initial state and returns validated proposals for the existing approval flow. The original project is not writable during planning.
+
+Configure `VYOMA_OPENHANDS_MODEL` and `VYOMA_OPENHANDS_API_KEY` on the backend, with optional `VYOMA_OPENHANDS_BASE_URL`. OpenHands uses its own LLM configuration; this is separate from the simple planner's `VYOMA_AI_*` variables.
+
+Important: a temporary directory is not a security sandbox. File-edit-only tools reduce execution risk, but do not use this adapter with sensitive or untrusted projects or expose the development backend publicly. Production should run OpenHands through Agent Server in an isolated ephemeral container with strict network, CPU, memory, time and cost controls. No build/test execution or APK delivery is enabled.
+
+## OpenHands integration acceptance
+
+- [x] Add pinned OpenHands SDK/tool dependencies.
+- [x] Add a disposable-copy adapter without a terminal tool.
+- [x] Add an API engine selector and Android UI opt-in.
+- [x] Add mocked tests for the adapter and API route.
+- [ ] Run the live SDK against a disposable sample project.
+- [ ] Move execution to isolated OpenHands Agent Server/container before public use.
+
+
+## Latest increment: task audit trail
+
+- [x] Record task creation, proposal creation, user rejection, successful application, and workspace conflicts as append-only SQLite events.
+- [ ] Expose a bearer-authenticated task audit-history endpoint in the active `app.coding_agent:api` service and add a UI viewer.
+- [x] Keep audit events minimal: event type, task/proposal IDs, relative path, timestamp and bounded details; do not store proposed source content or API secrets in the audit event.
+- [x] Add API tests for event ordering and unknown-task rejection.
+- [ ] Add per-user identity/ownership, retention policy, tamper-resistant production audit storage, and concurrency/transaction guarantees before deployment.
+
+This is a development audit trail, not a tamper-proof compliance log. The API still uses one shared development bearer token.
+
+
+## Latest increment: project workspace bootstrap
+
+- [x] Add an authenticated `POST /v1/projects` endpoint to create an empty workspace using a validated project ID.
+- [x] Create the project directory with owner-only permissions where supported; reject duplicate IDs and path traversal.
+- [x] Add Android Coding Agent UI action to create the workspace and select its project ID.
+- [x] Add backend tests for authentication, invalid IDs, duplicate IDs and empty workspace creation.
+- [ ] Import or generate a real Android starter project into the workspace.
+- [ ] Replace the shared development token with per-user identity and project ownership before public deployment.
+
+Creating a workspace only creates an empty directory. It does not generate source files, import a GitHub repository, or build an APK.
+
+
+## Next target — isolated workspace and importable project source
+
+Before enabling build/test execution or treating this as production-ready:
+- [ ] Add a supported project import path (start with a bounded ZIP upload from the Android device).
+- [ ] Reject ZIP traversal paths, symlink entries, duplicate paths, oversized archives, too many files, and protected secrets/signing files.
+- [ ] Run OpenHands in a disposable container/Agent Server workspace, not merely a temporary directory.
+- [ ] Enforce CPU/memory/time/disk limits and default-deny network egress.
+- [ ] Add task cancellation and workspace expiry/cleanup.
+- [ ] Run build/test commands only inside the isolated worker and capture redacted logs.
+- [ ] Return a revision-bound diff and actual pass/fail/not-run checks to the Android review UI.
+
+The new regression tests also verify that protected .env files never appear in returned OpenHands proposals and oversized task prompts are rejected before the SDK is started.
+
+
+## Source ZIP import — next increment
+
+- [x] Add authenticated import endpoint for an existing empty project workspace.
+- [x] Accept base64-encoded ZIP archives with a 10 MB compressed limit, 25 MB total expanded limit, 500-file limit, and 2 MB per-file limit.
+- [x] Reject path traversal, absolute/drive paths, symlinks, duplicate paths, high compression ratios, protected secret/signing files, and generated output folders.
+- [x] Restrict the first import path to UTF-8 text/source files; binary assets are intentionally rejected.
+- [x] Add regression tests for successful import, unsafe paths, protected files, unsupported assets, authentication, and non-empty workspaces.
+- [ ] Connect the Android UI to select and upload a project ZIP.
+- [ ] Make import transactionally atomic across all files and add cancellation/cleanup for interrupted uploads.
+- [ ] Replace shared development bearer token with per-user identity and project ownership.
+- [ ] Move workspace operations into isolated ephemeral worker/container before accepting untrusted projects.
+
+Endpoint: `POST /v1/projects/{project_id}/import-zip` with JSON `{"archive_base64":"..."}` and the development bearer token. This endpoint is for a development environment only and must not be exposed publicly.
+
+
+## Latest increment: conflict-safe task undo
+- Added an authenticated `POST /v1/tasks/{task_id}/undo` endpoint for successfully applied one-file tasks.
+- Undo restores the original UTF-8 source only when the current file still exactly matches the agent-applied content; if a user or another process edited it afterward, undo returns HTTP 409 and preserves the newer work.
+- The Android Coding Agent screen now shows an Undo approved change action for successful one-file tasks and displays the UNDONE state.
+- Added API tests for successful restore, duplicate undo rejection, and conflict protection.
+- This is not a durable multi-file checkpoint system. Multi-file undo remains blocked until a transactional restore design is added.
+
+
+## Latest increment: multi-file undo
+- Undo now preflights the complete approved change set and refuses to mutate any file if one target no longer matches the agent-applied version.
+- Original file contents are staged before restoration; newly created files are removed only when their current content matches the approved version.
+- If an operation fails after mutation begins, rollback of applied versions is attempted and a clear error is returned if recovery is incomplete.
+- Added tests for multi-file restore, no-partial-mutation on stale content, and explicit approval.
+- This remains filesystem-level development recovery, not a durable checkpoint or guaranteed transaction across hardware/process crashes.
+
+## Image-to-UI implementation increment
+- [x] Android device image picker for PNG/JPEG/WebP design references (2 MiB client cap).
+- [x] Backend validates data URL MIME, base64 and image signature before forwarding.
+- [x] Vision-capable planner accepts a text + image message and generates reviewable native source diffs.
+- [x] Image tasks select the vision planner instead of the current text-only OpenHands adapter.
+- [x] Tests cover image forwarding, invalid image rejection, and size limits.
+- [ ] Live provider test with a vision-capable model and a real screenshot.
+- [ ] Persist reusable design references and normalized design tokens per project.
+- [ ] Build an isolated preview worker and compare rendered Compose output with the reference.
+
+See docs/MCP_CONNECTORS_AND_DESIGN_TO_CODE.md for the Figma/Canva/Supabase MCP integration design, official provider constraints, and staged rollout. MCP OAuth/transport is not implemented yet; a connector connected to ChatGPT does not automatically connect to Vyoma.

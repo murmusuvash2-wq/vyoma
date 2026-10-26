@@ -35,6 +35,37 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** a real provider request succeeds on a device and invalid credentials fail safely. Source implementation alone does not satisfy this gate.
 
+## M4.1 — Coding-agent foundation (Phase B, first increment)
+- [x] Add restricted task-workspace file listing and UTF-8 source reading
+- [x] Generate reviewable file-change proposals without mutating the workspace
+- [x] Require explicit approval before applying a proposal
+- [x] Reject path traversal and symlink paths; bound file/list sizes and skip build output
+- [x] Detect stale proposals before applying changes
+- [x] Add backend unit tests and a dedicated Python CI workflow
+- [x] Add explicit plan rejection path that leaves workspace unchanged
+- [x] Integrate OpenHands Software Agent SDK in a disposable-copy, file-edit-only development adapter (live runtime validation still pending)
+- [x] Add development bearer-token task API and local SQLite task persistence; [ ] add per-user authorization, quotas and production audit database
+- [x] Connect Android Coding Agent UI to the backend with an OpenHands engine option and explicit approval/rejection
+- [x] Add basic SQLite audit events for task creation and proposal decisions (development-only, shared-token auth)
+- [x] Add task undo endpoint and Android UI for single-file and multi-file changes with stale-content conflict detection
+- [ ] Add task-wide durable checkpoints and isolated build-worker execution
+
+**Exit gate:** a coding-agent task proposes a scoped diff, waits for approval, applies safely, and returns verifiable checks. This increment provides the workspace safety boundary only; it is not yet an autonomous agent.
+
+
+## M4.2 — Image-to-UI and design connectors
+- [x] Attach PNG/JPEG/WebP reference images to coding tasks in Android
+- [x] Validate image type/signature/size in backend before vision-model use
+- [x] Send image as multimodal input to vision-capable planner
+- [x] Keep image-driven code changes behind the same diff approval gate
+- [x] Document Figma, Canva, Supabase and GitHub connector architecture and provider restrictions
+- [ ] Verify with a real vision model and reference screenshot
+- [ ] Normalize imported designs into project-owned design tokens/components
+- [ ] Implement per-user OAuth and connector lifecycle UI for Figma/Canva/Supabase/GitHub
+- [ ] Add isolated Compose preview/render-and-compare loop
+
+**Exit gate:** an uploaded design produces a reviewable native Compose diff, then a built preview that can be compared with the reference; external connector writes require explicit approval.
+
 ## M2 — Workspace and durable project memory
 - [ ] Project workspace with chat, preview, files/diff, tests, and activity
 - [ ] Define versioned memory records and provenance
@@ -76,14 +107,21 @@ Status reflects repository evidence, not intended design. A screen or documentat
 
 **Exit gate:** status reports never say “passed” for tests that did not run.
 
-## M6 — Cloud build and release
+## M6 — Cloud build, preview approval, and in-app updates
 - [ ] Isolated worker, quotas, cancellation, and artifact expiry
-- [ ] Cloud Gradle build and downloadable APK artifact
-- [ ] Signing-key handling outside source code; release signing requires explicit setup
-- [ ] Build failure diagnostics and reproducibility metadata
-- [ ] Emulator/device testing of critical flows
+- [ ] Build an immutable project revision into a previewable APK/artifact
+- [ ] Show preview/build/test results tied to the exact source revision
+- [ ] Add explicit **Looks good / Approve this version** control after preview
+- [ ] After approval, offer **Build update** and track queued/building/succeeded/failed states
+- [ ] Keep a version history with revision, changelog, build/test results, and rollback target
+- [ ] Add an in-app **Check for updates / Update app** control to generated apps
+- [ ] Download and verify update artifacts (versionCode + SHA-256) before offering installation
+- [ ] Support Play in-app updates for Play-distributed apps; for direct APK distribution, open Android's package installer and require OS/user confirmation
+- [ ] Signing-key handling outside source code; never expose signing keys to the agent or generated app
+- [ ] Build failure diagnostics, reproducibility metadata, and emulator/device tests
+- [ ] Preserve the last known-good release and allow rollback to a prior approved revision
 
-**Exit gate:** a clean Android starter project builds in the cloud and the APK can be downloaded securely.
+**Exit gate:** previewing never publishes or installs anything. Only after explicit approval can an immutable revision be built as an update; generated apps can check for a newer compatible signed release, verify it, and update through the permitted distribution flow.
 
 ## M7 — Product hardening
 - [ ] Usage/cost limits and abuse controls

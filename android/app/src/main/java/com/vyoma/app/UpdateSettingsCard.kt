@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,31 @@ internal fun UpdateSettingsCard() {
     var latestBuild by remember { mutableStateOf<LatestVyomaBuild?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var busy by remember { mutableStateOf(false) }
+
+    // Automatically check when the user opens Settings, so the update does not depend
+    // on discovering and tapping the manual button. The manual button remains for retry.
+    LaunchedEffect(Unit) {
+        busy = true
+        message = "Checking for the latest Vyoma build…"
+        try {
+            val result = withContext(Dispatchers.IO) { fetchLatestBuild() }
+            val installedCode = PackageInfoCompat.getLongVersionCode(
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            )
+            latestBuild = result
+            downloadedApk = null
+            message = if (result.versionCode > installedCode) {
+                "Update available: Vyoma ${result.versionName} (build ${result.versionCode}). Tap Download update."
+            } else {
+                "You're up to date. Installed build: $installedCode; latest build: ${result.versionCode}."
+            }
+        } catch (error: Exception) {
+            val detail = error.message?.take(100)?.ifBlank { null } ?: error.javaClass.simpleName
+            message = "Automatic update check failed: $detail. Tap Check updates to retry."
+        } finally {
+            busy = false
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),

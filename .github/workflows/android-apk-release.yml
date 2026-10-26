@@ -6,11 +6,12 @@ on:
       version_name:
         description: Version name for a signed APK (for example 0.1.2)
         required: true
-        default: 0.1.4
+        default: 0.1.5
   push:
     branches:
       - main
       - "feature/approved-homepage-layout"
+      - "feature/phase-b-coding-agent-foundation"
     tags:
       - "v*"
 
@@ -73,7 +74,7 @@ jobs:
           elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             VERSION="${{ inputs.version_name }}"
           else
-            VERSION="0.1.4"
+            VERSION="0.1.5"
           fi
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]]; then
             echo "::error::Invalid version_name: $VERSION"
@@ -103,7 +104,7 @@ jobs:
           mkdir -p release-output
           cp android/app/build/outputs/apk/release/app-release.apk "release-output/Vyoma-${{ steps.version.outputs.name }}.apk"
           sha256sum "release-output/Vyoma-${{ steps.version.outputs.name }}.apk" > release-output/SHA256SUMS.txt
-          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/feature/approved-homepage-layout" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "push" && ( "$GITHUB_REF" == "refs/heads/feature/approved-homepage-layout" || "$GITHUB_REF" == "refs/heads/feature/phase-b-coding-agent-foundation" ) ]]; then
             cp android/app/build/outputs/apk/release/app-release.apk release-output/Vyoma-latest-test.apk
             APK_SHA256="$(sha256sum release-output/Vyoma-latest-test.apk | awk '{print $1}')"
             printf '%s  %s\n' "$APK_SHA256" "Vyoma-latest-test.apk" > release-output/SHA256SUMS-latest-test.txt
@@ -123,14 +124,14 @@ jobs:
       # Mutable tag is intentionally limited to the testing channel. It always points
       # to the exact commit used for the latest feature-branch APK, never a production release.
       - name: Move latest-test channel tag to this commit
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/approved-homepage-layout'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/feature/approved-homepage-layout' || github.ref == 'refs/heads/feature/phase-b-coding-agent-foundation')
         shell: bash
         run: |
           git tag --force latest-test "$GITHUB_SHA"
           git push --force origin refs/tags/latest-test
 
       - name: Publish or update one-click latest test APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/approved-homepage-layout'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/feature/approved-homepage-layout' || github.ref == 'refs/heads/feature/phase-b-coding-agent-foundation')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-test
@@ -144,7 +145,7 @@ jobs:
             release-output/SHA256SUMS-latest-test.txt
             release-output/latest-test.json
           body: |
-            Automatically refreshed test APK from the feature/approved-homepage-layout branch.
+            Automatically refreshed test APK from the approved UI or Phase B development branch.
             Source commit: ${{ github.sha }}
             This is a testing build, not a production release.
             Verify SHA-256 using SHA256SUMS-latest-test.txt.
