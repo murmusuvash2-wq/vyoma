@@ -358,6 +358,36 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     if (current.status == "SUCCEEDED") {
                         Text("Change applied to the backend workspace. Build/test checks have not run yet.", color = Green, fontWeight = FontWeight.SemiBold)
                     }
+
+                    if (current.status == "SUCCEEDED" && current.changes.size == 1) {
+                        Text(
+                            "Undo is available only if the edited file has not changed since this task was applied.",
+                            color = Muted,
+                            fontSize = 12.sp
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                error = null
+                                busy = true
+                                scope.launch {
+                                    try {
+                                        val undone = CodingAgentApiClient.undo(backendUrl, bearerToken, current.taskId)
+                                        task = undone
+                                        taskIdInput = undone.taskId
+                                        taskPrefs.edit().putString("last_task_id", undone.taskId).apply()
+                                    } catch (t: Throwable) {
+                                        error = t.message ?: "Could not safely undo this task."
+                                    } finally {
+                                        busy = false
+                                    }
+                                }
+                            },
+                            enabled = !busy && backendUrl.isNotBlank() && bearerToken.isNotBlank()
+                        ) { Text("Undo approved change") }
+                    }
+                    if (current.status == "UNDONE") {
+                        Text("Change reverted. The original file was restored only after a conflict check.", color = Green, fontWeight = FontWeight.SemiBold)
+                    }
                     if (current.status == "REJECTED") {
                         Text("Plan rejected. No workspace files were changed.", color = Muted, fontWeight = FontWeight.SemiBold)
                     }
