@@ -400,7 +400,7 @@ def test_planner_sends_valid_design_image_as_vision_content(tmp_path: Path, monk
         return FakeResponse(provider_envelope(json.dumps(payload)))
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-    png = b"\\x89PNG\\r\\n\\x1a\\n" + b"test-image-bytes"
+    png = bytes.fromhex("89504e470d0a1a0a") + b"test-image-bytes"
     data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     plan_code_changes(
         tmp_path, "Build this screen in Jetpack Compose",
@@ -432,7 +432,7 @@ def test_planner_rejects_invalid_design_image_before_provider_call(tmp_path: Pat
 
 
 def test_planner_rejects_design_image_over_two_megabytes(tmp_path: Path):
-    png = b"\\x89PNG\\r\\n\\x1a\\n" + b"x" * (2 * 1024 * 1024)
+    png = bytes.fromhex("89504e470d0a1a0a") + b"x" * (2 * 1024 * 1024)
     data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     with pytest.raises(CodingAgentError, match="2 MB"):
         plan_code_changes(
