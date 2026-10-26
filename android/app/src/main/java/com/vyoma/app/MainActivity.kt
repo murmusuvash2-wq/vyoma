@@ -4,67 +4,30 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import kotlinx.coroutines.launch
 
 internal val Mint = Color(0xFFBDF4D3)
@@ -84,494 +47,855 @@ private data class StarterTemplate(
 
 private val templates = listOf(
     StarterTemplate("Expense tracker", "Track spending simply", "₹", Color(0xFFE1F5E8), "Create a personal expense tracker with categories, monthly budgets and spending charts."),
-    StarterTemplate("Learning app", "Learn a little every day", "✦", Color(0xFFE8E8FF), "Create a learning app with short lessons, quizzes, progress and streaks."),
-    StarterTemplate("Bus tracker", "Routes and live updates", "↗", Color(0xFFFFE9D5), "Create a bus route app with saved routes, stops, verified timings and service updates."),
-    StarterTemplate("Habit garden", "Build consistent habits", "❋", Color(0xFFFFE3EA), "Create a habit tracker with daily check-ins, reminders and a visual progress garden."),
-    StarterTemplate("Shop app", "Browse a product catalogue", "▦", Color(0xFFE0F0F7), "Create a shopping catalogue with product cards, search, filters and a cart demo."),
-    StarterTemplate("Chat app", "A simple messaging UI", "••", Color(0xFFF4E8CF), "Create a messaging app UI with conversations, message bubbles and profile details.")
+    StarterTemplate("Habit tracker", "Build consistent daily habits", "❋", Color(0xFFFFE3EA), "Create a habit tracker with daily check-ins, reminders and visual streak cards."),
+    StarterTemplate("Study flashcards", "Learn faster every day", "✦", Color(0xFFE8E8FF), "Create a flashcard learning app with quick quizzes, progress tracking and score card."),
+    StarterTemplate("Store catalogue", "Browse product inventory", "▦", Color(0xFFE0F0F7), "Create a shopping catalogue with product cards, search, filters and cart demo.")
 )
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            androidx.compose.material3.MaterialTheme(
+            MaterialTheme(
                 colorScheme = lightColorScheme(
                     primary = Navy,
                     secondary = Green,
                     background = Cream,
                     surface = Color.White
                 )
-            ) { EntryFlow { VyomaApp() } }
+            ) {
+                VyomaApp()
+            }
         }
     }
 }
-
 
 @Composable
 private fun VyomaApp() {
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var idea by remember { mutableStateOf("") }
-    var draftPrompt by remember { mutableStateOf<String?>(null) }
-    var selectedTemplate by remember { mutableStateOf<StarterTemplate?>(null) }
-    var blueprintIdea by remember { mutableStateOf("") }
-    val localProjects = remember(context) { mutableStateListOf<String>().apply { addAll(ProjectStore.loadLocalProjects(context)) } }
-    val approvedBlueprints = remember(context) { mutableStateListOf<ApprovedBlueprint>().apply { addAll(ProjectStore.loadBlueprints(context)) } }
+    var activeWorkspaceBlueprint by remember { mutableStateOf<ApprovedBlueprint?>(null) }
+    var isViewingSettings by remember { mutableStateOf(false) }
 
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    val screenTitle = when (selectedTab) {
-        0 -> "VYOMA"
-        1 -> "Projects"
-        2 -> "Blueprint review"
-        3 -> "Preview"
-        else -> "Settings"
+    val approvedBlueprints = remember(context) {
+        mutableStateListOf<ApprovedBlueprint>().apply {
+            addAll(ProjectStore.loadBlueprints(context))
+        }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = Color.White,
-                drawerContentColor = Navy
-            ) {
-                Column(Modifier.fillMaxSize()) {
-                    Surface(
-                        color = Navy,
-                        shape = RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp)
-                    ) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 28.dp, bottom = 22.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Surface(color = Mint, shape = RoundedCornerShape(15.dp), modifier = Modifier.size(48.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Navy, modifier = Modifier.size(25.dp))
-                                    }
-                                }
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("VYOMA", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                                    Text("Your AI app studio", color = Color(0xFFD5E3E5), fontSize = 12.sp)
-                                }
-                                Surface(color = Color(0xFF294653), shape = RoundedCornerShape(9.dp)) {
-                                    Text("BETA", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
+    // 1. If a project is selected, open The Unified Studio immediately
+    if (activeWorkspaceBlueprint != null) {
+        WorkspaceScreen(
+            initialBlueprint = activeWorkspaceBlueprint!!,
+            onBack = { activeWorkspaceBlueprint = null },
+            onOpenSettings = {
+                activeWorkspaceBlueprint = null
+                isViewingSettings = true
+            }
+        )
+        return
+    }
+
+    // 2. If Settings is selected, show Settings View
+    if (isViewingSettings) {
+        SettingsScreen(
+            onBack = { isViewingSettings = false }
+        )
+        return
+    }
+
+    // 3. Otherwise, show the Minimal Projects Hub
+    ProjectsHubScreen(
+        blueprints = approvedBlueprints,
+        onOpenProject = { blueprint ->
+            activeWorkspaceBlueprint = blueprint
+        },
+        onCreateAndOpen = { name, goal ->
+            val cleanName = name.take(30).ifBlank { "My Android App" }
+            val newBp = ApprovedBlueprint(
+                name = cleanName,
+                goal = goal.ifBlank { "Android native app for $cleanName" },
+                screens = "Home, Details, Settings",
+                data = "User items, preferences",
+                integrations = "None",
+                permissions = "None",
+                edgeCases = "Offline use, empty state",
+                acceptanceTests = "App opens, core actions work",
+                mcpTools = "GitHub MCP, SQLite DB, Compose M3"
+            )
+            approvedBlueprints.add(newBp)
+            ProjectStore.saveBlueprints(context, approvedBlueprints)
+            activeWorkspaceBlueprint = newBp
+        },
+        onDeleteProject = { bp ->
+            approvedBlueprints.remove(bp)
+            ProjectStore.saveBlueprints(context, approvedBlueprints)
+            Toast.makeText(context, "Project removed", Toast.LENGTH_SHORT).show()
+        },
+        onOpenSettings = { isViewingSettings = true }
+    )
+}
+
+@Composable
+private fun ProjectsHubScreen(
+    blueprints: List<ApprovedBlueprint>,
+    onOpenProject: (ApprovedBlueprint) -> Unit,
+    onCreateAndOpen: (String, String) -> Unit,
+    onDeleteProject: (ApprovedBlueprint) -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val settings = remember { SettingsStore.loadSettings(context) }
+
+    var appIdeaInput by remember { mutableStateOf("") }
+    var isResearching by remember { mutableStateOf(false) }
+    var researchReport by remember { mutableStateOf<IdeaResearchReport?>(null) }
+    var researchError by remember { mutableStateOf<String?>(null) }
+
+    // In-App OTA Update State
+    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableIntStateOf(0) }
+
+    // Silently check GitHub Releases for updates on launch
+    LaunchedEffect(Unit) {
+        val res = AppUpdateService.checkForUpdates(
+            context = context,
+            owner = settings.githubOwner.ifBlank { null },
+            token = settings.githubToken.ifBlank { null }
+        )
+        if (res.isSuccess) {
+            val info = res.getOrNull()
+            if (info != null && info.isUpdateAvailable) {
+                updateInfo = info
+            }
+        }
+    }
+
+    Scaffold(
+        containerColor = Cream,
+        topBar = {
+            Surface(color = Color.White, shadowElevation = 1.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Surface(color = Mint, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("V", color = Green, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                            }
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("VYOMA", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Navy, letterSpacing = 1.sp)
+                                Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(6.dp)) {
+                                    Text("STUDIO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Green, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
                                 }
                             }
-                            Text(
-                                "Turn your ideas into a plan, one step at a time.",
-                                color = Color(0xFFE5EFEC),
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp
-                            )
+                            Text("AI Native App Builder", fontSize = 11.sp, color = Muted)
                         }
                     }
 
-                    Text(
-                        "WORKSPACE",
-                        color = Muted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                        modifier = Modifier.padding(start = 22.dp, top = 22.dp, bottom = 8.dp)
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("Home", fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal) },
-                        selected = selectedTab == 0,
-                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                        onClick = { selectedTab = 0; scope.launch { drawerState.close() } },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = Mint,
-                            selectedIconColor = Green,
-                            selectedTextColor = Navy,
-                            unselectedIconColor = Muted,
-                            unselectedTextColor = Navy
-                        )
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("Projects", fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal) },
-                        selected = selectedTab == 1,
-                        icon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
-                        onClick = { selectedTab = 1; scope.launch { drawerState.close() } },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = Mint,
-                            selectedIconColor = Green,
-                            selectedTextColor = Navy,
-                            unselectedIconColor = Muted,
-                            unselectedTextColor = Navy
-                        )
-                    )
-
-                    Text(
-                        "TOOLS",
-                        color = Muted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                        modifier = Modifier.padding(start = 22.dp, top = 18.dp, bottom = 8.dp)
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("Preview", fontWeight = if (selectedTab == 3) FontWeight.SemiBold else FontWeight.Normal) },
-                        selected = selectedTab == 3,
-                        icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
-                        onClick = { selectedTab = 3; scope.launch { drawerState.close() } },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = Mint,
-                            selectedIconColor = Green,
-                            selectedTextColor = Navy,
-                            unselectedIconColor = Muted,
-                            unselectedTextColor = Navy
-                        )
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("Settings", fontWeight = if (selectedTab == 4) FontWeight.SemiBold else FontWeight.Normal) },
-                        selected = selectedTab == 4,
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        onClick = { selectedTab = 4; scope.launch { drawerState.close() } },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = Mint,
-                            selectedIconColor = Green,
-                            selectedTextColor = Navy,
-                            unselectedIconColor = Muted,
-                            unselectedTextColor = Navy
-                        )
-                    )
-
-                    Spacer(Modifier.weight(1f))
-                    HorizontalDivider(color = Line)
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(11.dp)
-                    ) {
-                        Surface(color = Color(0xFFE7F6EC), shape = CircleShape, modifier = Modifier.size(38.dp)) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("V", color = Green, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Navy)
+                    }
+                }
+            }
+        }
+    ) { insets ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(insets)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            // In-App OTA Update Notification Banner (Appears automatically when GitHub release is found)
+            if (updateInfo != null && updateInfo!!.isUpdateAvailable) {
+                val update = updateInfo!!
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FAF6)),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Green),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Green, modifier = Modifier.size(20.dp))
+                                Text("New Version Ready: v${update.latestVersionName}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Green)
+                            }
+                            Surface(color = Mint, shape = RoundedCornerShape(6.dp)) {
+                                Text("OTA Ready", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Green, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("Vyoma workspace", color = Navy, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Early access · Prototype", color = Muted, fontSize = 10.sp)
+
+                        Text(
+                            "A newer signed release is published on GitHub. Tap below to update in-app without downloading from browser.",
+                            fontSize = 12.sp,
+                            color = Navy,
+                            lineHeight = 16.sp
+                        )
+
+                        if (isDownloadingUpdate) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                LinearProgressIndicator(
+                                    progress = { downloadProgress / 100f },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = Green
+                                )
+                                Text("Downloading APK: $downloadProgress%", fontSize = 11.sp, color = Muted)
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    val url = update.apkDownloadUrl ?: return@Button
+                                    val fileName = update.apkFileName ?: "Vyoma-Update.apk"
+                                    isDownloadingUpdate = true
+                                    coroutineScope.launch {
+                                        val dlRes = AppUpdateService.downloadApk(context, url, fileName) { p ->
+                                            downloadProgress = p
+                                        }
+                                        isDownloadingUpdate = false
+                                        if (dlRes.isSuccess) {
+                                            val file = dlRes.getOrNull()!!
+                                            val instRes = AppUpdateService.promptInstallApk(context, file)
+                                            if (instRes.isFailure) {
+                                                Toast.makeText(context, instRes.exceptionOrNull()?.message, Toast.LENGTH_LONG).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Download failed: ${dlRes.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Green)
+                            ) {
+                                Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Install Update Now", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Hero Create Card
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Green, modifier = Modifier.size(20.dp))
+                        Text("What do you want to build?", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Navy)
+                    }
+                    Text(
+                        "Describe your app idea. Vyoma will open the studio where you can chat with AI, see live preview, and build the APK.",
+                        fontSize = 12.sp,
+                        color = Muted,
+                        lineHeight = 17.sp
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(86.dp)
+                            .background(Cream, RoundedCornerShape(14.dp))
+                            .padding(12.dp)
+                    ) {
+                        if (appIdeaInput.isBlank()) {
+                            Text(
+                                "e.g. 'Build a personal finance expense tracker with category budgets' or 'Workout & exercise gym log'...",
+                                color = Muted,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = appIdeaInput,
+                            onValueChange = { appIdeaInput = it },
+                            modifier = Modifier.fillMaxSize(),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Navy, fontSize = 13.sp, lineHeight = 19.sp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                if (appIdeaInput.isNotBlank()) {
+                                    val title = appIdeaInput
+                                        .split(" ")
+                                        .take(3)
+                                        .joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+                                    onCreateAndOpen(title, appIdeaInput.trim())
+                                }
+                            },
+                            enabled = appIdeaInput.isNotBlank(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Navy),
+                            modifier = Modifier.weight(1.3f)
+                        ) {
+                            Icon(Icons.Default.RocketLaunch, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Open Studio", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                if (appIdeaInput.isNotBlank()) {
+                                    isResearching = true
+                                    researchError = null
+                                    coroutineScope.launch {
+                                        val res = AiService.researchAndValidateIdea(appIdeaInput, settings)
+                                        isResearching = false
+                                        if (res.isSuccess) {
+                                            researchReport = res.getOrNull()
+                                        } else {
+                                            researchError = res.exceptionOrNull()?.message ?: "Research failed"
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = appIdeaInput.isNotBlank() && !isResearching,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isResearching) {
+                                CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("AI Research", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    // Display research report if generated
+                    if (researchReport != null) {
+                        val report = researchReport!!
+                        Surface(
+                            color = Color(0xFFF3FAF6),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD3EEDF)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(report.appName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Green)
+                                    Surface(color = Green, shape = RoundedCornerShape(6.dp)) {
+                                        Text("${report.viabilityScore}% Viable", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    }
+                                }
+                                Text(report.honestVerdict, fontSize = 11.sp, color = Navy, lineHeight = 16.sp)
+
+                                Button(
+                                    onClick = {
+                                        val bp = AiService.createBlueprintFromReport(report, appIdeaInput)
+                                        onCreateAndOpen(bp.name, bp.goal)
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Green),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Add to Projects & Open Studio", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Quick Starter Inspirations
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Quick Starters", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted, letterSpacing = 1.sp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    templates.forEach { tmpl ->
+                        Surface(
+                            onClick = {
+                                onCreateAndOpen(tmpl.title, tmpl.prompt)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(tmpl.symbol, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Navy)
+                                Column {
+                                    Text(tmpl.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Navy)
+                                    Text(tmpl.subtitle, fontSize = 10.sp, color = Muted)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Your Projects Section
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Your Projects (${blueprints.size})", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Navy)
+                }
+
+                if (blueprints.isEmpty()) {
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Muted, modifier = Modifier.size(36.dp))
+                            Text("No projects yet", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Navy)
+                            Text("Type an idea above or pick a starter to open your first studio workspace.", fontSize = 12.sp, color = Muted)
+                        }
+                    }
+                } else {
+                    blueprints.forEach { bp ->
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenProject(bp) }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Surface(color = Mint, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(38.dp)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(bp.name.take(1).uppercase(), color = Green, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        }
+                                    }
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(bp.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Navy)
+                                        Text(bp.goal.take(50) + "...", fontSize = 11.sp, color = Muted)
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Button(
+                                        onClick = { onOpenProject(bp) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Navy),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("Open Studio", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteProject(bp) },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Muted, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-    ) {
-        Scaffold(
-            containerColor = Cream,
-            topBar = {
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val initialSettings = remember { SettingsStore.loadSettings(context) }
+
+    var selectedProvider by remember { mutableStateOf(initialSettings.provider) }
+    var apiKey by remember { mutableStateOf(initialSettings.apiKey) }
+    var isApiKeyVisible by remember { mutableStateOf(false) }
+    var modelName by remember { mutableStateOf(initialSettings.modelName) }
+    var customEndpoint by remember { mutableStateOf(initialSettings.customEndpoint) }
+
+    var githubToken by remember { mutableStateOf(initialSettings.githubToken) }
+    var isGithubTokenVisible by remember { mutableStateOf(false) }
+    var githubOwner by remember { mutableStateOf(initialSettings.githubOwner) }
+    var isTestingGithub by remember { mutableStateOf(false) }
+    var githubTestResult by remember { mutableStateOf<String?>(null) }
+
+    // Manual In-App Update State
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var manualUpdateStatus by remember { mutableStateOf<String?>(null) }
+    var manualUpdateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var isManualDownloading by remember { mutableStateOf(false) }
+
+    Scaffold(
+        containerColor = Cream,
+        topBar = {
+            Surface(color = Color.White, shadowElevation = 1.dp) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().background(Cream).height(58.dp).padding(horizontal = 10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Open navigation menu", tint = Navy)
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Navy)
                     }
-                    Text(screenTitle, color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Settings & Connections", color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
-        ) { insets ->
-        when (selectedTab) {
-            0 -> HomeScreen(
-                modifier = Modifier.padding(insets),
-                idea = idea,
-                onIdeaChange = { idea = it },
-                onStart = {
-                    if (idea.isNotBlank()) {
-                        blueprintIdea = idea.trim()
-                        selectedTab = 2
-                    }
-                },
-                onTemplatePreview = { selectedTemplate = it; selectedTab = 3 },
-                onUseTemplate = {
-                    blueprintIdea = it.prompt
-                    selectedTab = 2
-                },
-                onSeeProjects = { selectedTab = 1 }
-            )
-            1 -> ProjectsScreen(
-                modifier = Modifier.padding(insets),
-                projects = localProjects,
-                approvedBlueprints = approvedBlueprints,
-                draftPrompt = draftPrompt,
-                onCreateFromDraft = {
-                    val name = draftPrompt?.take(36)?.ifBlank { "New project" } ?: "New project"
-                    if (localProjects.none { it == name }) {
-                        localProjects.add(name)
-                        ProjectStore.saveLocalProjects(context, localProjects)
-                    }
-                    draftPrompt = null
-                },
-                onBackHome = { selectedTab = 0 }
-            )
-            2 -> BlueprintScreen(
-                modifier = Modifier.padding(insets),
-                initialIdea = blueprintIdea,
-                onBack = { selectedTab = 0 },
-                onApproved = { blueprint ->
-                    approvedBlueprints.add(blueprint)
-                    ProjectStore.saveBlueprints(context, approvedBlueprints)
-                    blueprintIdea = ""
-                    selectedTab = 1
-                }
-            )
-            3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
-            else -> SettingsScreen(Modifier.padding(insets))
         }
-        }
-    }
-}
-
-@Composable
-private fun HomeScreen(
-    modifier: Modifier,
-    idea: String,
-    onIdeaChange: (String) -> Unit,
-    onStart: () -> Unit,
-    onTemplatePreview: (StarterTemplate) -> Unit,
-    onUseTemplate: (StarterTemplate) -> Unit,
-    onSeeProjects: () -> Unit
-) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
-    ) {
+    ) { insets ->
         Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(22.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(insets)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Surface(color = Mint, shape = CircleShape) {
-                    Text("BETA", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Navy, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("Dream it.\nBuild it.", color = Navy, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Tell Vyoma your idea. We’ll shape the plan together before building anything.", color = Muted, fontSize = 15.sp, lineHeight = 22.sp)
-            }
-
+            // Section 1: In-App OTA Updates Card
             Card(
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Green)
+                            Text("In-App OTA Updates", color = Navy, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        Surface(color = Cream, shape = RoundedCornerShape(8.dp)) {
+                            Text("v${AppUpdateService.getCurrentVersionName(context)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Navy, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
+                    }
+                    Text(
+                        "Checks GitHub Releases for new signed APK builds. When available, update in-app without downloading from browser.",
+                        fontSize = 12.sp,
+                        color = Muted
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            isCheckingUpdate = true
+                            manualUpdateStatus = "Checking GitHub..."
+                            coroutineScope.launch {
+                                val res = AppUpdateService.checkForUpdates(
+                                    context = context,
+                                    owner = githubOwner.ifBlank { null },
+                                    token = githubToken.ifBlank { null }
+                                )
+                                isCheckingUpdate = false
+                                if (res.isSuccess) {
+                                    val info = res.getOrNull()
+                                    if (info != null && info.isUpdateAvailable) {
+                                        manualUpdateInfo = info
+                                        manualUpdateStatus = "🎉 New version available: v${info.latestVersionName}"
+                                    } else {
+                                        manualUpdateStatus = "✅ You're up to date! (v${info?.currentVersionName})"
+                                    }
+                                } else {
+                                    manualUpdateStatus = "Check failed: ${res.exceptionOrNull()?.message}"
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text("Check for Updates Now", fontSize = 12.sp)
+                    }
+
+                    if (manualUpdateStatus != null) {
+                        Text(manualUpdateStatus!!, fontSize = 12.sp, color = if (manualUpdateStatus!!.startsWith("✅")) Green else Navy)
+                    }
+
+                    if (manualUpdateInfo != null && manualUpdateInfo!!.isUpdateAvailable) {
+                        Button(
+                            onClick = {
+                                val url = manualUpdateInfo?.apkDownloadUrl ?: return@Button
+                                val fileName = manualUpdateInfo?.apkFileName ?: "Vyoma-Update.apk"
+                                isManualDownloading = true
+                                coroutineScope.launch {
+                                    val dlRes = AppUpdateService.downloadApk(context, url, fileName) {}
+                                    isManualDownloading = false
+                                    if (dlRes.isSuccess) {
+                                        val file = dlRes.getOrNull()!!
+                                        AppUpdateService.promptInstallApk(context, file)
+                                    } else {
+                                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Green),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            if (isManualDownloading) {
+                                CircularProgressIndicator(modifier = Modifier.size(13.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text("Install v${manualUpdateInfo!!.latestVersionName} Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // Section 2: AI Provider Selection
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(color = Color(0xFFE5F7EC), shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = Green, modifier = Modifier.size(19.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Green)
+                        Text("AI Model Provider", color = Navy, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AiProvider.values().forEach { prov ->
+                            val isSelected = prov == selectedProvider
+                            Surface(
+                                onClick = {
+                                    selectedProvider = prov
+                                    modelName = prov.defaultModel
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Mint else Cream,
+                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, Green) else null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(prov.displayName, color = Navy, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Default: ${prov.defaultModel}", color = Muted, fontSize = 11.sp)
+                                    }
+                                    if (isSelected) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = Green, modifier = Modifier.size(18.dp))
+                                    }
+                                }
                             }
                         }
-                        Column {
-                            Text("Start with an idea", color = Navy, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text("AI planning · no code needed", color = Muted, fontSize = 11.sp)
-                        }
                     }
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(94.dp).background(Cream, RoundedCornerShape(16.dp)).padding(13.dp)
-                    ) {
-                        if (idea.isEmpty()) {
-                            Text("I want to build an app that…", color = Muted, fontSize = 14.sp)
-                        }
-                        BasicTextField(
-                            value = idea,
-                            onValueChange = onIdeaChange,
-                            modifier = Modifier.fillMaxSize(),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Navy, fontSize = 14.sp, lineHeight = 20.sp),
-                            decorationBox = { inner -> inner() }
+
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("${selectedProvider.displayName} API Key") },
+                        placeholder = { Text("Enter your API key") },
+                        visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
+                                Icon(if (isApiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null, tint = Muted)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = modelName,
+                        onValueChange = { modelName = it },
+                        label = { Text("Model Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    if (selectedProvider == AiProvider.CUSTOM) {
+                        OutlinedTextField(
+                            value = customEndpoint,
+                            onValueChange = { customEndpoint = it },
+                            label = { Text("Custom Base URL") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
                         )
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("You’ll review the blueprint first", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                        Button(
-                            onClick = onStart,
-                            enabled = idea.isNotBlank(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Navy, contentColor = Color.White),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 15.dp, vertical = 11.dp)
+                }
+            }
+
+            // Section 3: GitHub Connection
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Green)
+                        Text("GitHub Cloud APK Delivery", color = Navy, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                    Text("Required for pushing project files and compiling APKs in cloud workers.", fontSize = 12.sp, color = Muted)
+
+                    OutlinedTextField(
+                        value = githubOwner,
+                        onValueChange = { githubOwner = it },
+                        label = { Text("GitHub Username / Org") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = githubToken,
+                        onValueChange = { githubToken = it },
+                        label = { Text("Personal Access Token (PAT)") },
+                        placeholder = { Text("ghp_...") },
+                        visualTransformation = if (isGithubTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isGithubTokenVisible = !isGithubTokenVisible }) {
+                                Icon(if (isGithubTokenVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null, tint = Muted)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                if (githubToken.isBlank()) {
+                                    Toast.makeText(context, "Please enter token first", Toast.LENGTH_SHORT).show()
+                                    return@OutlinedButton
+                                }
+                                isTestingGithub = true
+                                githubTestResult = "Connecting..."
+                                coroutineScope.launch {
+                                    val res = GitHubService.getAuthenticatedUser(githubToken)
+                                    isTestingGithub = false
+                                    if (res.isSuccess) {
+                                        val user = res.getOrNull()
+                                        githubOwner = user?.login ?: githubOwner
+                                        githubTestResult = "Connected as @${user?.login}"
+                                    } else {
+                                        githubTestResult = "Failed: ${res.exceptionOrNull()?.message}"
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("Plan idea")
-                            Spacer(Modifier.width(7.dp))
-                            Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                            if (isTestingGithub) {
+                                CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text("Test Connection", fontSize = 12.sp)
+                        }
+
+                        if (githubTestResult != null) {
+                            Text(
+                                text = githubTestResult!!,
+                                fontSize = 11.sp,
+                                color = if (githubTestResult!!.startsWith("Connected")) Green else Color.Red
+                            )
                         }
                     }
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        Text("Need a starting point?", color = Navy, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                        Text("Pick a template and make it yours", color = Muted, fontSize = 12.sp)
+            // Zero RAM Guarantee Card
+            Surface(
+                color = Color(0xFFF3FAF6),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD3EEDF)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Green, modifier = Modifier.size(18.dp))
+                        Text("Zero Phone RAM Overhead", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Green)
                     }
-                    Surface(color = Color(0xFFEAF0EB), shape = RoundedCornerShape(10.dp)) {
-                        Text("6 STARTERS", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    templates.forEach { item ->
-                        TemplateCard(item, onPreview = { onTemplatePreview(item) }, onUse = { onUseTemplate(item) })
-                    }
+                    Text(
+                        "Whether your phone has 3 GB or 12 GB RAM, performance stays buttery-smooth because app builds run on high-performance cloud infrastructure.",
+                        fontSize = 12.sp,
+                        color = Navy,
+                        lineHeight = 17.sp
+                    )
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Text("Your projects", color = Navy, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                    Text("Your ideas, all in one place", color = Muted, fontSize = 12.sp)
-                }
-                OutlinedButton(onClick = onSeeProjects, shape = RoundedCornerShape(12.dp)) {
-                    Text("View all", fontSize = 12.sp)
-                }
-            }
-            Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(color = Color(0xFFE8E8FF), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(42.dp)) {
-                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Navy) }
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text("Your next big idea starts here", color = Navy, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Create a project or start from a template.", color = Muted, fontSize = 11.sp)
-                    }
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Muted)
-                }
-            }
-            Text("Starter UI only · AI, cloud builds and project sync are not connected yet.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 12.dp))
-        }
-    }
-}
-
-@Composable
-private fun TemplateCard(item: StarterTemplate, onPreview: () -> Unit, onUse: () -> Unit) {
-    Card(
-        modifier = Modifier.width(224.dp),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
-    ) {
-        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Surface(color = item.tint, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth().height(94.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(item.symbol, color = Navy, fontSize = 42.sp, fontWeight = FontWeight.Bold)
-                    Surface(color = Color.White.copy(alpha = 0.85f), shape = RoundedCornerShape(9.dp), modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                        Text("DEMO", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
-                    }
-                }
-            }
-            Text(item.title, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text(item.subtitle, color = Muted, fontSize = 12.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onPreview, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 7.dp)) {
-                    Text("Preview", fontSize = 11.sp)
-                }
-                Button(onClick = onUse, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.buttonColors(containerColor = Navy), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 7.dp)) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Use", fontSize = 11.sp)
-                }
+            // Save Preferences Button
+            Button(
+                onClick = {
+                    val newSettings = initialSettings.copy(
+                        provider = selectedProvider,
+                        apiKey = apiKey,
+                        modelName = modelName,
+                        customEndpoint = customEndpoint,
+                        githubToken = githubToken,
+                        githubOwner = githubOwner
+                    )
+                    SettingsStore.saveSettings(context, newSettings)
+                    Toast.makeText(context, "Settings saved successfully!", Toast.LENGTH_SHORT).show()
+                    onBack()
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Navy),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Save Preferences", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
         }
-    }
-}
-
-@Composable
-private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedBlueprints: List<ApprovedBlueprint>, draftPrompt: String?, onCreateFromDraft: () -> Unit, onBackHome: () -> Unit) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Projects", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Your app ideas and workspaces", color = Muted, fontSize = 14.sp)
-        if (draftPrompt != null) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Idea ready to plan", color = Green, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(draftPrompt, color = Navy, fontSize = 15.sp)
-                    Text("Next step: review a blueprint. AI project creation is not connected in this prototype.", color = Muted, fontSize = 12.sp)
-                    Button(onClick = onCreateFromDraft, colors = ButtonDefaults.buttonColors(containerColor = Navy), shape = RoundedCornerShape(13.dp)) {
-                        Text("Save local draft")
-                    }
-                }
-            }
-        }
-        approvedBlueprints.forEach { blueprint ->
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(blueprint.name, color = Navy, fontWeight = FontWeight.Bold)
-                    Text("Blueprint approved · Android · local prototype", color = Green, fontSize = 11.sp)
-                    Text(blueprint.goal, color = Muted, fontSize = 12.sp)
-                }
-            }
-        }
-        if (projects.isEmpty() && approvedBlueprints.isEmpty()) {
-            Surface(color = Color.White, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Green, modifier = Modifier.size(36.dp))
-                    Text("No projects yet", color = Navy, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Start with an idea or use a ready-made template.", color = Muted, fontSize = 13.sp)
-                    Button(onClick = onBackHome, colors = ButtonDefaults.buttonColors(containerColor = Navy)) { Text("Explore starters") }
-                }
-            }
-        } else {
-            projects.forEach { project ->
-                Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                    Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Default.Build, contentDescription = null, tint = Green)
-                        Column {
-                            Text(project, color = Navy, fontWeight = FontWeight.SemiBold)
-                            Text("Local demo draft · not synced", color = Muted, fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreviewScreen(modifier: Modifier, selectedTemplate: StarterTemplate?) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Preview", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Explore a starter before using it", color = Muted, fontSize = 14.sp)
-        val item = selectedTemplate
-        Surface(color = item?.tint ?: Color.White, shape = RoundedCornerShape(26.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(item?.symbol ?: "✦", color = Navy, fontSize = 52.sp, fontWeight = FontWeight.Bold)
-                Text(item?.title ?: "Your app preview", color = Navy, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text(item?.subtitle ?: "Choose Preview on any starter card to see it here.", color = Muted, fontSize = 13.sp)
-                Text("Illustrative template preview", color = Muted, fontSize = 11.sp)
-            }
-        }
-        Text("This is a visual demo, not a running generated app.", color = Muted, fontSize = 12.sp)
-    }
-}
-
-@Composable
-private fun SettingsScreen(modifier: Modifier) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Settings", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Your Vyoma workspace preferences", color = Muted, fontSize = 14.sp)
-        listOf("Account", "AI provider connection", "GitHub connection", "Build preferences", "Privacy & security", "About Vyoma").forEach { label ->
-            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(label, color = Navy, fontWeight = FontWeight.Medium)
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Muted)
-                }
-            }
-        }
-        Text("Settings are visual placeholders at this stage.", color = Muted, fontSize = 12.sp)
     }
 }

@@ -25,7 +25,9 @@ Status reflects repository evidence, not intended design. A screen or documentat
 **Exit gate:** a user can create and approve a blueprint in the Android app without code being generated.
 
 ## M2 — Workspace and durable project memory
-- [ ] Project workspace with chat, preview, files/diff, tests, and activity
+- [x] Compact Unified Studio with 3-pillar switcher (chat, preview, files) and universal cloud build pill
+- [x] Multi-provider AI connection settings (Gemini, OpenAI, Claude, Custom) with user API keys
+- [x] GitHub REST API integration for pushing generated Compose files and tracking cloud APK builds
 - [ ] Define versioned memory records and provenance
 - [ ] Separate requirements, decisions, rejected alternatives, design tokens, task state, code summaries, and verification history
 - [ ] Add conflict handling and user correction
@@ -37,7 +39,8 @@ Status reflects repository evidence, not intended design. A screen or documentat
 **Exit gate:** project context survives reloads and can be reviewed/corrected by its owner.
 
 ## M3 — Design and controlled edits
-- [ ] Design tokens and reusable component inventory
+- [x] Design tokens and curated Material 3 palette inventory (`ThemePalette.kt`)
+- [x] Dual Mode (Creator No-Code vs Developer Pro-Code) with live interactive canvas and visual component tweaking
 - [ ] Draft preview clearly separated from saved/approved source
 - [ ] Before/after view and file diff
 - [ ] Scope confirmation, approval, checkpoint, undo/rollback

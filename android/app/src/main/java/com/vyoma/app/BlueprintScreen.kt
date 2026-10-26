@@ -42,7 +42,8 @@ internal data class ApprovedBlueprint(
     val integrations: String,
     val permissions: String,
     val edgeCases: String,
-    val acceptanceTests: String
+    val acceptanceTests: String,
+    val mcpTools: String = "GitHub MCP, SQLite/Room DB, Jetpack Navigation"
 )
 
 @Composable
@@ -60,6 +61,7 @@ internal fun BlueprintScreen(
     var permissions by remember(initialIdea) { mutableStateOf("No special Android permissions unless a confirmed feature needs them.") }
     var edgeCases by remember(initialIdea) { mutableStateOf("Empty states, invalid input, offline use, and recoverable errors.") }
     var acceptanceTests by remember(initialIdea) { mutableStateOf("App opens; core flow works; invalid input is handled; data is not lost unexpectedly.") }
+    var mcpTools by remember(initialIdea) { mutableStateOf("GitHub MCP, SQLite/Room DB, Jetpack Navigation") }
 
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 14.dp),
@@ -87,6 +89,7 @@ internal fun BlueprintScreen(
         BlueprintField("Goal and core problem", goal, { goal = it }, "What should this app help someone do?", minLines = 3)
         BlueprintField("Screens and navigation", screens, { screens = it }, "List the screens and how users move between them", minLines = 2)
         BlueprintField("Data to store", data, { data = it }, "What information does the app need?", minLines = 2)
+        BlueprintField("MCP Tools & Integrations", mcpTools, { mcpTools = it }, "Model Context Protocol tools & services (e.g. GitHub MCP, SQLite DB)", minLines = 2)
         BlueprintField("Integrations", integrations, { integrations = it }, "APIs, sign-in, maps, payments, or none", minLines = 2)
         BlueprintField("Android permissions", permissions, { permissions = it }, "Only permissions justified by a feature", minLines = 2)
         BlueprintField("Edge cases and errors", edgeCases, { edgeCases = it }, "Offline, empty data, invalid input, recovery", minLines = 2)
@@ -99,7 +102,7 @@ internal fun BlueprintScreen(
         }
         Button(
             onClick = {
-                onApproved(ApprovedBlueprint(name.trim(), goal.trim(), screens.trim(), data.trim(), integrations.trim(), permissions.trim(), edgeCases.trim(), acceptanceTests.trim()))
+                onApproved(ApprovedBlueprint(name.trim(), goal.trim(), screens.trim(), data.trim(), integrations.trim(), permissions.trim(), edgeCases.trim(), acceptanceTests.trim(), mcpTools.trim()))
             },
             enabled = name.isNotBlank() && goal.isNotBlank(),
             modifier = Modifier.fillMaxWidth().height(54.dp),

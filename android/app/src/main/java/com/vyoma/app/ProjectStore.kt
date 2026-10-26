@@ -30,7 +30,8 @@ internal object ProjectStore {
                         integrations = item.optString("integrations"),
                         permissions = item.optString("permissions"),
                         edgeCases = item.optString("edgeCases"),
-                        acceptanceTests = item.optString("acceptanceTests")
+                        acceptanceTests = item.optString("acceptanceTests"),
+                        mcpTools = item.optString("mcpTools", "GitHub MCP, SQLite/Room DB, Jetpack Navigation")
                     )
                 )
             }
@@ -50,6 +51,7 @@ internal object ProjectStore {
                     .put("permissions", blueprint.permissions)
                     .put("edgeCases", blueprint.edgeCases)
                     .put("acceptanceTests", blueprint.acceptanceTests)
+                    .put("mcpTools", blueprint.mcpTools)
             )
         }
         prefs(context).edit().putString(APPROVED, array.toString()).apply()

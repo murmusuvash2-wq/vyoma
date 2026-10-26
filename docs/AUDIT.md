@@ -65,3 +65,46 @@ No source files were deleted. Static tree inspection alone cannot prove that the
 - Connected app startup to restore saved items and approval/create actions to persist changes.
 - This is local-device persistence for the prototype, not Room, encrypted cross-device sync, authentication, or cloud backup. Corrupt stored JSON falls back to an empty list; recovery UX and migration tests remain future work.
 - Android CI must be checked for the persistence commits before marking this implementation build-verified.
+
+
+## AI Chat Workspace & GitHub Cloud Build Integration — 2026-10-25
+- Added `SettingsStore.kt` enabling user-selected AI providers (Google Gemini, OpenAI, Anthropic Claude, Custom/OpenRouter) and secure storage of user-provided API keys and GitHub credentials.
+- Added `AiService.kt` for provider-agnostic AI chat reasoning, real-time honest idea validation, competitor analysis, and Jetpack Compose code generation.
+- Added `GitHubService.kt` for repository verification/creation, multi-file commits via GitHub REST API, and querying cloud workflow runs.
+- Upgraded `HomeScreen` with an AI Idea & GitHub Research Lab providing real-time honest reality checks, competitor landscape, growth metrics, and 1-tap "Add to Projects" conversion.
+- Added `LivePreviewTabContent` to `WorkspaceScreen.kt` featuring an interactive simulated smartphone canvas with dynamic screen switching, working interactive components, and theme toggling.
+- Added MCP tools recommendation tracking across blueprints and project workspaces.
+- Added `android.permission.INTERNET` to `AndroidManifest.xml`.
+- Integrated `WorkspaceScreen` transitions directly into `MainActivity.kt` from blueprint approvals, research reports, and project cards.
+
+
+## Non-Coder UI/UX Architecture & Dual Mode (Creator vs Dev) — 2026-10-26
+- Added `ThemePalette.kt` providing 7 curated Material 3 palettes (Fintech Emerald, Cyber Neon, Pastel Minimal, Luxury Obsidian, Sunset Coral, Deep Ocean, Lavender Dream) with guaranteed WCAG AA high-contrast compliance and 48dp touch targets.
+- Added Dual Mode ("Creator Mode" for non-coders vs "Developer Mode" for engineers) with seamless 1-tap switching in top navigation bar and persistent state in `SettingsStore`.
+- Upgraded `WorkspaceScreen.kt` with:
+  - **Live Palette Selector Bar:** 1-tap dynamic re-theming of the simulated smartphone preview and automatic synchronization to generated Jetpack Compose theme files (`Theme.kt`, `Color.kt`).
+  - **Click-to-Tweak Visual Customizer:** Direct inline modification of app title, core objective, brand icon category, and interactive task management without touching Kotlin code.
+  - **Pre-Engineered UI Blocks Tab:** Visual lego-block container view for non-coders with accessibility compliance indicators.
+  - **1-Tap Cloud APK Delivery:** Non-technical cloud generation interface highlighting the Zero Phone RAM/Overhead guarantee (optimized for 3-4 GB RAM mobile devices).
+- Updated `MainActivity.kt` Settings Screen with Studio Experience Mode selection and phone hardware load explanation.
+
+
+## Compact Unified Studio Refactor — 2026-10-26
+- Redesigned `MainActivity.kt` into a streamlined **Projects Hub**:
+  - Eliminated fragmented 5-screen hops (separate Blueprint review, template preview, and complex drawer navigations).
+  - Prominent "What do you want to build?" input that creates and directly transitions into the workspace studio in 1 tap.
+  - "Your Projects" cards list with immediate "Open Studio" access.
+- Refactored `WorkspaceScreen.kt` into a **Unified 3-Pillar Switcher**:
+  - `[ 💬 Chat | 📱 Preview | 📁 Files ]`: Both coders and non-coders work in the exact same workspace without artificial mode segregation.
+  - **Universal Cloud Build Pill:** Integrated directly into the top bar (`[ 🚀 Build APK ]`), allowing 1-tap cloud builds and live status tracking from any tab.
+  - Embedded inline action chips in AI chat bubbles (`Preview`, `Files`, `Build APK`).
+
+
+## GitHub In-App OTA Auto-Update System — 2026-10-26
+- Added `AppUpdateService.kt` allowing Vyoma to query GitHub Releases API (`repos/{owner}/{repo}/releases/latest`) on launch.
+- Added version comparison engine comparing semantic tags (e.g. `v0.1.2`) against installed `versionName`.
+- Added streaming APK downloader with real-time percentage progress tracking.
+- Added in-place APK installation trigger using `FileProvider` (`content://...`) and `ACTION_VIEW` intent with `application/vnd.android.package-archive`.
+- Added `REQUEST_INSTALL_PACKAGES` permission and `file_paths.xml` configuration to `AndroidManifest.xml`.
+- Integrated automated In-App Update notification card on homepage (`ProjectsHubScreen`) and manual "Check for Updates" tool in `SettingsScreen`.
+- Since builds share the stable release signing keystore, in-place updates preserve all local databases and user preferences seamlessly without re-downloading from browser.

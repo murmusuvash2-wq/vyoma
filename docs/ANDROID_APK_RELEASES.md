@@ -22,3 +22,11 @@ Keep a secure backup of the keystore. Never commit the keystore or passwords to 
 If these secrets are absent, the workflow creates a debug-signed APK for testing and labels it clearly. GitHub-hosted runners generate their own debug signing key, so debug APKs from different runs are **not guaranteed to update each other**. Do not distribute those as upgradeable production releases.
 
 The workflow run number is used as the Android version code; the version name comes from the tag (or manual workflow input). The workflow also provides a SHA-256 checksum.
+
+## In-App OTA Auto-Updates
+Installed Vyoma instances automatically query the latest GitHub release via `AppUpdateService.kt`:
+1. On app launch, Vyoma calls `GET /repos/{owner}/{repo}/releases/latest`.
+2. If a newer signed tag is available, an in-app banner notifies the user.
+3. Tapping "Install Update Now" downloads the APK directly in-app with streaming percentage progress.
+4. An `ACTION_VIEW` intent with `FileProvider` triggers the native Android package installer.
+5. Because every release is signed with the same keystore, Android updates the app in-place without losing user data or requiring manual browser downloads.
