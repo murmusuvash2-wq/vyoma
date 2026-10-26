@@ -1,5 +1,8 @@
 package com.vyoma.app
 
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +28,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -40,6 +45,8 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
     var bearerToken by remember { mutableStateOf(savedConnection.bearerToken) }
     var projectId by remember { mutableStateOf(savedConnection.projectId) }
     var goal by remember { mutableStateOf("") }
+    var designImageDataUrl by remember { mutableStateOf<String?>(null) }
+    var designImageLabel by remember { mutableStateOf<String?>(null) }
     var useOpenHands by remember { mutableStateOf(true) }
     var consentToSendSource by remember { mutableStateOf(false) }
     var task by remember { mutableStateOf<CodingAgentTask?>(null) }
@@ -47,6 +54,36 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val designImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                busy = true
+                error = null
+                try {
+                    val mime = context.contentResolver.getType(uri)?.lowercase()
+                    require(mime in setOf("image/png", "image/jpeg", "image/webp")) {
+                        "Choose a PNG, JPEG, or WebP screenshot."
+                    }
+                    val bytes = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { it.readBytes(2 * 1024 * 1024 + 1) }
+                            ?: throw IllegalStateException("Could not read the selected image.")
+                    }
+                    require(bytes.isNotEmpty() && bytes.size <= 2 * 1024 * 1024) {
+                        "Design images must be 2 MB or smaller. Please crop or resize the screenshot."
+                    }
+                    designImageDataUrl = "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    designImageLabel = "Design reference attached (" + mime.substringAfter('/') + ", " + (bytes.size / 1024) + " KB)"
+                    useOpenHands = false
+                } catch (t: Throwable) {
+                    designImageDataUrl = null
+                    designImageLabel = null
+                    error = t.message ?: "Could not attach the design image."
+                } finally {
+                    busy = false
+                }
+            }
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(18.dp),
@@ -177,6 +214,30 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { designImagePicker.launch("image/*") },
+                        enabled = !busy
+                    ) { Text(if (designImageDataUrl == null) "Add design image" else "Replace design image") }
+                    if (designImageDataUrl != null) {
+                        OutlinedButton(
+                            onClick = { designImageDataUrl = null; designImageLabel = null },
+                            enabled = !busy
+                        ) { Text("Remove") }
+                    }
+                }
+                if (designImageLabel != null) {
+                    Surface(
+                        color = androidx.compose.ui.graphics.Color(0xFFE7F6EC),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                    ) {
+                        Text(designImageLabel!!, color = Green, modifier = Modifier.padding(10.dp), fontSize = 12.sp)
+                    }
+                    Text(
+                        "The image is sent to your configured vision-capable AI provider with this task. The model will propose native Jetpack Compose code; review the diff before applying it.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 17.sp
+                    )
+                }
                 Surface(
                     color = androidx.compose.ui.graphics.Color(0xFFE7F6EC),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
@@ -226,7 +287,11 @@ internal fun CodingAgentScreen(modifier: Modifier = Modifier) {
                         busy = true
                         scope.launch {
                             try {
-                                val planned = CodingAgentApiClient.plan(backendUrl, bearerToken, projectId, goal, if (useOpenHands) "openhands" else "planner")
+                                val planned = CodingAgentApiClient.plan(
+                                    backendUrl, bearerToken, projectId, goal,
+                                    if (useOpenHands && designImageDataUrl == null) "openhands" else "planner",
+                                    designImageDataUrl
+                                )
                                 task = planned
                                 taskIdInput = planned.taskId
                                 taskPrefs.edit().putString("last_task_id", planned.taskId).apply()
