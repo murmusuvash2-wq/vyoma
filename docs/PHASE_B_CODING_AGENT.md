@@ -123,3 +123,11 @@ The new regression tests also verify that protected .env files never appear in r
 - [ ] Move workspace operations into isolated ephemeral worker/container before accepting untrusted projects.
 
 Endpoint: `POST /v1/projects/{project_id}/import-zip` with JSON `{"archive_base64":"..."}` and the development bearer token. This endpoint is for a development environment only and must not be exposed publicly.
+
+
+## Latest increment: conflict-safe task undo
+- Added an authenticated `POST /v1/tasks/{task_id}/undo` endpoint for successfully applied one-file tasks.
+- Undo restores the original UTF-8 source only when the current file still exactly matches the agent-applied content; if a user or another process edited it afterward, undo returns HTTP 409 and preserves the newer work.
+- The Android Coding Agent screen now shows an Undo approved change action for successful one-file tasks and displays the UNDONE state.
+- Added API tests for successful restore, duplicate undo rejection, and conflict protection.
+- This is not a durable multi-file checkpoint system. Multi-file undo remains blocked until a transactional restore design is added.
