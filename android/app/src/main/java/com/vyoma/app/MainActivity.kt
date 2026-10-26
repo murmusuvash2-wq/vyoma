@@ -141,7 +141,8 @@ private fun VyomaApp() {
         1 -> "Projects"
         2 -> "Blueprint review"
         3 -> "Preview"
-        4 -> "AI connection"
+        4 -> "Settings"
+        5 -> "AI connection"
         else -> "Coding Agent"
     }
 
@@ -263,8 +264,23 @@ private fun VyomaApp() {
                     )
 
                     NavigationDrawerItem(
-                        label = { Text("Coding Agent", fontWeight = if (selectedTab == 5) FontWeight.SemiBold else FontWeight.Normal) },
+                        label = { Text("AI connection", fontWeight = if (selectedTab == 5) FontWeight.SemiBold else FontWeight.Normal) },
                         selected = selectedTab == 5,
+                        icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
+                        onClick = { selectedTab = 5; scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Mint,
+                            selectedIconColor = Green,
+                            selectedTextColor = Navy,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Navy
+                        )
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Coding Agent", fontWeight = if (selectedTab == 6) FontWeight.SemiBold else FontWeight.Normal) },
+                        selected = selectedTab == 6,
                         icon = { Icon(Icons.Default.Build, contentDescription = null) },
                         onClick = { selectedTab = 5; scope.launch { drawerState.close() } },
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
@@ -363,7 +379,11 @@ private fun VyomaApp() {
                 }
             )
             3 -> PreviewScreen(Modifier.padding(insets), selectedTemplate)
-            4 -> AiConnectionSettings(Modifier.padding(insets))
+            4 -> SettingsScreen(
+                modifier = Modifier.padding(insets),
+                onAiConnectionClick = { selectedTab = 5 }
+            )
+            5 -> AiConnectionSettings(Modifier.padding(insets))
             else -> CodingAgentScreen(Modifier.padding(insets))
         }
         }
@@ -736,19 +756,32 @@ private fun PreviewScreen(modifier: Modifier, selectedTemplate: StarterTemplate?
 }
 
 @Composable
-private fun SettingsScreen(modifier: Modifier) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+private fun SettingsScreen(modifier: Modifier, onAiConnectionClick: () -> Unit) {
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Text("Settings", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Your Vyoma workspace preferences", color = Muted, fontSize = 14.sp)
-        listOf("Account", "AI provider connection", "GitHub connection", "Build preferences", "Privacy & security", "About Vyoma").forEach { label ->
-            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(label, color = Navy, fontWeight = FontWeight.Medium)
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Muted)
+        Text("Manage your AI provider and Vyoma app updates.", color = Muted, fontSize = 14.sp)
+        Surface(
+            color = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(17.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("AI provider connection", color = Navy, fontWeight = FontWeight.Medium)
+                    Text("Configure endpoint, model and API key", color = Muted, fontSize = 12.sp)
                 }
+                OutlinedButton(onClick = onAiConnectionClick) { Text("Open") }
             }
         }
         UpdateSettingsCard()
-        Text("Settings are visual placeholders at this stage.", color = Muted, fontSize = 12.sp)
+        Text("App updates are checked from the release metadata. Installations always require Android's confirmation.", color = Muted, fontSize = 12.sp)
     }
 }
