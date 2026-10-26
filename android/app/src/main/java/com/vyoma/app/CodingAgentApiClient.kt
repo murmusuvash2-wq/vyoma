@@ -120,6 +120,64 @@ internal object CodingAgentApiClient {
         )
     }
 
+
+    suspend fun importProjectZip(
+        backendUrl: String,
+        bearerToken: String,
+        projectId: String,
+        archiveBase64: String
+    ): Int = withContext(Dispatchers.IO) {
+        require(projectId.matches(Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"))) {
+            "Project ID may contain only letters, numbers, underscores and hyphens."
+        }
+        require(archiveBase64.isNotBlank()) { "Choose a ZIP source archive first." }
+        require(archiveBase64.length <= 14_000_000) { "ZIP archive exceeds the upload limit." }
+        val base = backendUrl.trim().trimEnd('/')
+        val parsed = runCatching { URL(base) }.getOrNull()
+            ?: throw IllegalArgumentException("Enter a valid backend URL.")
+        require(parsed.protocol.equals("https", ignoreCase = true) && parsed.host.isNotBlank()) {
+            "Backend URL must use HTTPS."
+        }
+        require(bearerToken.isNotBlank()) { "Enter the backend bearer token." }
+        val connection = (URL(base + "/v1/projects/${projectId.trim()}/import-zip").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10_000
+            readTimeout = 90_000
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer ${bearerToken.trim()}")
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Content-Type", "application/json")
+        }
+        try {
+            OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use {
+                it.write(JSONObject().put("archive_base64", archiveBase64).toString())
+            }
+            val statusCode = connection.responseCode
+            val stream = if (statusCode in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.let { input ->
+                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { it.readText() }
+            }.orEmpty()
+            if (statusCode !in 200..299) {
+                val detail = runCatching { JSONObject(raw).optString("detail") }.getOrNull().orEmpty()
+                val message = when (statusCode) {
+                    400 -> "The ZIP was rejected. Check that it contains supported UTF-8 source files."
+                    401 -> "Backend rejected the bearer token (401)."
+                    404 -> "Project not found (404). Check the project ID."
+                    409 -> "Import requires an existing empty project workspace."
+                    413 -> "ZIP archive or its contents exceed the allowed size."
+                    503 -> "Backend configuration is incomplete or unavailable (503)."
+                    else -> "Project import failed (HTTP $statusCode)."
+                }
+                throw IllegalStateException(if (detail.isBlank()) message else "$message $detail".take(500))
+            }
+            JSONObject(raw).optInt("imported_files", 0).also {
+                if (it <= 0) throw IllegalStateException("Backend returned no imported files.")
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private suspend fun request(
         backendUrl: String,
         bearerToken: String,
