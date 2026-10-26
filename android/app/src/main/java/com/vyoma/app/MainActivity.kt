@@ -664,19 +664,74 @@ private fun ProjectsScreen(modifier: Modifier, projects: List<String>, approvedB
 
 @Composable
 private fun PreviewScreen(modifier: Modifier, selectedTemplate: StarterTemplate?) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val item = selectedTemplate
+    var approvedPreview by remember(item) { mutableStateOf(false) }
+
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Text("Preview", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Explore a starter before using it", color = Muted, fontSize = 14.sp)
-        val item = selectedTemplate
-        Surface(color = item?.tint ?: Color.White, shape = RoundedCornerShape(26.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Review first. Approve only when it looks right.", color = Muted, fontSize = 14.sp)
+        Surface(
+            color = item?.tint ?: Color.White,
+            shape = RoundedCornerShape(26.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(item?.symbol ?: "✦", color = Navy, fontSize = 52.sp, fontWeight = FontWeight.Bold)
                 Text(item?.title ?: "Your app preview", color = Navy, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 Text(item?.subtitle ?: "Choose Preview on any starter card to see it here.", color = Muted, fontSize = 13.sp)
                 Text("Illustrative template preview", color = Muted, fontSize = 11.sp)
             }
         }
-        Text("This is a visual demo, not a running generated app.", color = Muted, fontSize = 12.sp)
+        Text(
+            "This is a visual demo, not a running generated app or a verified build.",
+            color = Muted,
+            fontSize = 12.sp
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Preview approval", color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (approvedPreview) "Preview marked as approved in this screen. This is not a release approval recorded on a server."
+                    else "If this design looks right, approve this preview. Nothing will be published or installed automatically.",
+                    color = Muted,
+                    fontSize = 13.sp
+                )
+                Button(
+                    onClick = { approvedPreview = !approvedPreview },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (approvedPreview) Green else Navy),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (approvedPreview) "Preview approved · Tap to undo" else "Looks good — approve preview")
+                }
+                OutlinedButton(
+                    onClick = { },
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Build update — cloud release not connected")
+                }
+                Text(
+                    "Next milestone: after approval, build an immutable revision, show real build/test results, then offer an in-app update control in the generated app. Direct APK updates must use Android's installer confirmation; silent installation is not promised.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
+                )
+            }
+        }
     }
 }
 
