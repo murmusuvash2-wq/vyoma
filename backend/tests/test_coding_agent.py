@@ -353,3 +353,39 @@ def test_zip_import_requires_authentication_and_empty_workspace(tmp_path: Path, 
     )
     assert conflict.status_code == 409
     assert (project / "existing.kt").read_text(encoding="utf-8") == "do not overwrite"
+
+
+def test_api_multi_file_undo_restores_complete_change_set(tmp_path: Path, monkeypatch):
+    root = tmp_path / "workspaces"
+    project = root / "sample"
+    project.mkdir(parents=True)
+    first = project / "Main.kt"
+    second = project / "Settings.kt"
+    first.write_text("main original\\n", encoding="utf-8")
+    second.write_text("settings original\\n", encoding="utf-8")
+    monkeypatch.setenv("VYOMA_BACKEND_API_TOKEN", "test-token")
+    monkeypatch.setenv("VYOMA_WORKSPACE_ROOT", str(root))
+    monkeypatch.setenv("VYOMA_TASK_DB_PATH", str(tmp_path / "tasks.sqlite3"))
+    monkeypatch.setenv("VYOMA_AI_ENDPOINT", "https://provider.example/v1/chat/completions")
+    monkeypatch.setenv("VYOMA_AI_MODEL", "test-model")
+    monkeypatch.setenv("VYOMA_AI_API_KEY", "fake-test-key")
+    coding_agent_module._api_tasks.clear()
+    payload = {"summary": "Update both files", "changes": [
+        {"path": "Main.kt", "content": "main updated\\n", "rationale": "Update main"},
+        {"path": "Settings.kt", "content": "settings updated\\n", "rationale": "Update settings"},
+    ]}
+    monkeypatch.setattr("urllib.request.urlopen", lambda request, timeout: FakeResponse(provider_envelope(json.dumps(payload))))
+    client = TestClient(coding_agent_module.api)
+    headers = {"Authorization": "Bearer test-token"}
+    planned = client.post("/v1/projects/sample/tasks/plan", json={"goal": "update both files"}, headers=headers)
+    assert planned.status_code == 200, planned.text
+    task_id = planned.json()["task_id"]
+    approved = client.post(f"/v1/tasks/{task_id}/approve", headers=headers)
+    assert approved.status_code == 200, approved.text
+    assert first.read_text(encoding="utf-8") == "main updated\\n"
+    assert second.read_text(encoding="utf-8") == "settings updated\\n"
+    undone = client.post(f"/v1/tasks/{task_id}/undo", headers=headers)
+    assert undone.status_code == 200, undone.text
+    assert undone.json()["status"] == "UNDONE"
+    assert first.read_text(encoding="utf-8") == "main original\\n"
+    assert second.read_text(encoding="utf-8") == "settings original\\n"
