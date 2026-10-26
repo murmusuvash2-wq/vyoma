@@ -172,3 +172,49 @@ def test_undo_refuses_to_overwrite_edits_made_after_approval(tmp_path: Path):
             approved=True,
         )
     assert target.read_text(encoding="utf-8") == "newer user edit\\n"
+
+
+def test_multi_file_undo_restores_all_originals(tmp_path: Path):
+    from app.agent_workspace import apply_approved_changes, restore_applied_changes
+
+    first = tmp_path / "Main.kt"
+    second = tmp_path / "Settings.kt"
+    first.write_text("main original\\n", encoding="utf-8")
+    proposals = (
+        propose_file_change(tmp_path, "Main.kt", "main updated\\n"),
+        propose_file_change(tmp_path, "Settings.kt", "settings new\\n"),
+    )
+    apply_approved_changes(tmp_path, proposals, approved=True)
+    restore_applied_changes(tmp_path, proposals, approved=True)
+
+    assert first.read_text(encoding="utf-8") == "main original\\n"
+    assert not second.exists()
+
+
+def test_multi_file_undo_preflights_all_files_before_mutating(tmp_path: Path):
+    from app.agent_workspace import apply_approved_changes, restore_applied_changes
+
+    first = tmp_path / "Main.kt"
+    second = tmp_path / "Settings.kt"
+    first.write_text("main original\\n", encoding="utf-8")
+    second.write_text("settings original\\n", encoding="utf-8")
+    proposals = (
+        propose_file_change(tmp_path, "Main.kt", "main updated\\n"),
+        propose_file_change(tmp_path, "Settings.kt", "settings updated\\n"),
+    )
+    apply_approved_changes(tmp_path, proposals, approved=True)
+    second.write_text("later user edit\\n", encoding="utf-8")
+
+    with pytest.raises(WorkspaceError, match="changed after the approved edit"):
+        restore_applied_changes(tmp_path, proposals, approved=True)
+
+    assert first.read_text(encoding="utf-8") == "main updated\\n"
+    assert second.read_text(encoding="utf-8") == "later user edit\\n"
+
+
+def test_multi_file_undo_requires_explicit_approval(tmp_path: Path):
+    from app.agent_workspace import restore_applied_changes
+
+    proposal = propose_file_change(tmp_path, "Main.kt", "new\\n")
+    with pytest.raises(WorkspaceError, match="approval"):
+        restore_applied_changes(tmp_path, (proposal,), approved=False)
