@@ -102,6 +102,21 @@ internal object CodingAgentApiClient {
         body = JSONObject()
     )
 
+    suspend fun undo(
+        backendUrl: String,
+        bearerToken: String,
+        taskId: String
+    ): CodingAgentTask {
+        require(taskId.matches(Regex("^[0-9a-fA-F-]{36}$"))) { "Enter a valid task ID." }
+        return request(
+            backendUrl = backendUrl,
+            bearerToken = bearerToken,
+            path = "/v1/tasks/${taskId.trim()}/undo",
+            method = "POST",
+            body = JSONObject()
+        )
+    }
+
     private suspend fun request(
         backendUrl: String,
         bearerToken: String,
