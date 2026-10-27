@@ -8,7 +8,7 @@ For each manual signed build or version tag, the workflow creates:
 - `SHA256SUMS-<version>.txt`: SHA-256 checksum for the APK inside the bundle.
 - A separately downloadable signed APK in the workflow artifact for convenience.
 
-The `latest-test` channel also publishes `Vyoma-latest-test-Android.zip`, `Vyoma-latest-test.apk`, checksums and `latest-test.json`. It is a test channel, not a production release. GitHub Actions refreshes it when the `feature/approved-homepage-layout` branch receives a push.
+The `latest-test` channel also publishes `Vyoma-latest-test-Android.zip`, `Vyoma-latest-test.apk`, checksums and `latest-test.json`. It is a test channel, not a production release. GitHub Actions refreshes it when the `feature/approved-homepage-layout` branch receives a push. Version-tagged stable releases also publish the direct `Vyoma-<version>.apk` asset and `release-info.json` so the in-app updater can discover stable releases, not only the moving test channel.
 
 ## Configure stable signing before running a release
 
@@ -48,7 +48,7 @@ Only tag versions intended for distribution. Android `versionCode` is generated 
 3. If Android asks, allow the file manager/browser to install unknown apps, then return to the installer.
 4. Confirm installation in Android's system dialog.
 
-Android may require user confirmation for every installation/update; this workflow does not silently install updates.
+Android may require user confirmation for every installation/update; this workflow does not silently install updates. In the app, open Settings → Vyoma app updates → Check updates. The updater checks both the latest-test channel and the newest non-prerelease GitHub Release, chooses the higher versionCode, downloads the APK and verifies its SHA-256 before handing it to Android's package installer. Releases created before `release-info.json` was added may not be discoverable by the in-app stable-release checker; publish a new tagged release after this workflow change.
 
 For an in-place update, the package ID must remain `com.vyoma.app` and the APK must use the same compatible signing certificate as the installed app. If Android reports a signature conflict or refuses the update, **do not uninstall the existing app first** because local data may be lost. Check that the stable release keystore has not changed.
 

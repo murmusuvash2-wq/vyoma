@@ -155,6 +155,14 @@ jobs:
           (cd "$OUT" && sha256sum "Vyoma-${VERSION}-Android.zip" > "SHA256SUMS-ZIP-${VERSION}.txt")
           echo "bundle=$OUT/Vyoma-${VERSION}-Android.zip" >> "$GITHUB_OUTPUT"
 
+          # Versioned stable releases publish a directly installable APK plus metadata
+          # so the Android app can discover them without relying on the latest-test channel.
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            APK_SHA256="$(sha256sum "$OUT/Vyoma-${VERSION}.apk" | awk '{print $1}')"
+            printf '{\n  "appId": "com.vyoma.app",\n  "versionName": "%s",\n  "versionCode": %s,\n  "commit": "%s",\n  "apkUrl": "https://github.com/murmusuvash2-wq/vyoma/releases/download/%s/Vyoma-%s.apk",\n  "sha256Apk": "%s"\n}\n' \
+              "$VERSION" "$VERSION_CODE" "$COMMIT" "$GITHUB_REF_NAME" "$VERSION" "$APK_SHA256" > "$OUT/release-info.json"
+          fi
+
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/feature/approved-homepage-layout" ]]; then
             cp "$BUNDLE/Vyoma-${VERSION}.apk" "$OUT/Vyoma-latest-test.apk"
             cp "$OUT/Vyoma-${VERSION}-Android.zip" "$OUT/Vyoma-latest-test-Android.zip"
@@ -229,10 +237,11 @@ jobs:
           name: Vyoma ${{ steps.version.outputs.name }}
           generate_release_notes: true
           files: |
+            release-output/Vyoma-${{ steps.version.outputs.name }}.apk
             release-output/Vyoma-${{ steps.version.outputs.name }}-Android.zip
             release-output/SHA256SUMS-ZIP-${{ steps.version.outputs.name }}.txt
             release-output/SHA256SUMS-${{ steps.version.outputs.name }}.txt
-            release-output/Vyoma-${{ steps.version.outputs.name }}-Android/
+            release-output/release-info.json
           body: |
             Signed Android distribution bundle for Vyoma ${{ steps.version.outputs.name }}.
             Stable release signing is required; debug-signed fallback is disabled.

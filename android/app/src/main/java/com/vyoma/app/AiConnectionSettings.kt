@@ -186,6 +186,8 @@ internal fun AiConnectionSettings(modifier: Modifier = Modifier) {
             }
         }
 
+        UpdateSettingsCard()
+
         Text(
             "Security note: the API key is encrypted at rest using Android Keystore. This MVP sends requests directly from this device to the provider. For a public production release, move provider calls behind an authenticated backend with quotas and server-side secret management.",
             color = Muted,

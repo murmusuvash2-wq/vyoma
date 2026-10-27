@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,10 +55,35 @@ private data class LatestVyomaBuild(
 internal fun UpdateSettingsCard() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var message by remember { mutableStateOf("Tap Check updates to contact the Vyoma release server.") }
+    var message by remember { mutableStateOf("Checking for updates…") }
     var latestBuild by remember { mutableStateOf<LatestVyomaBuild?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var busy by remember { mutableStateOf(false) }
+
+    // Check and download in the background whenever the update card enters Settings.
+    // Android still requires the user to confirm the actual APK installation.
+    LaunchedEffect(Unit) {
+        busy = true
+        try {
+            val result = withContext(Dispatchers.IO) { fetchLatestBuild() }
+            val installedCode = PackageInfoCompat.getLongVersionCode(
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            )
+            latestBuild = result
+            if (result.versionCode > installedCode) {
+                message = "Vyoma ${result.versionName} is available. Downloading and verifying…"
+                downloadedApk = withContext(Dispatchers.IO) { downloadAndVerify(result) }
+                message = "Update ${result.versionName} downloaded and verified. Tap Install update to continue."
+            } else {
+                message = "You're up to date. Installed build: $installedCode; latest build: ${result.versionCode}."
+            }
+        } catch (error: Exception) {
+            val detail = error.message?.take(100)?.ifBlank { null } ?: error.javaClass.simpleName
+            message = "Automatic update check failed: $detail. Tap Check updates to retry."
+        } finally {
+            busy = false
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -92,10 +118,13 @@ internal fun UpdateSettingsCard() {
                                 )
                                 latestBuild = result
                                 downloadedApk = null
-                                message = if (result.versionCode > installedCode) {
-                                    "Update available: Vyoma ${result.versionName} (build ${result.versionCode}). Tap Download update."
+                                if (result.versionCode > installedCode) {
+                                    message = "Update available: Vyoma ${result.versionName} (build ${result.versionCode}). Downloading and verifying…"
+                                    val apk = withContext(Dispatchers.IO) { downloadAndVerify(result) }
+                                    downloadedApk = apk
+                                    message = "Update ${result.versionName} downloaded and verified. Tap Install update to continue."
                                 } else {
-                                    "You're up to date. Installed build: $installedCode; latest build: ${result.versionCode}."
+                                    message = "You're up to date. Installed build: $installedCode; latest build: ${result.versionCode}."
                                 }
                             } catch (error: Exception) {
                                 val detail = error.message?.take(100)?.ifBlank { null } ?: error.javaClass.simpleName
@@ -162,7 +191,58 @@ internal fun UpdateSettingsCard() {
 }
 
 private fun fetchLatestBuild(): LatestVyomaBuild {
-    val connection = (URL("$UPDATE_METADATA_URL?check=${System.currentTimeMillis()}").openConnection() as HttpURLConnection).apply {
+    val candidates = mutableListOf<LatestVyomaBuild>()
+    // The moving latest-test channel is useful for beta builds.
+    runCatching { fetchJson(UPDATE_METADATA_URL) }.onSuccess { json ->
+        runCatching { parseBuildMetadata(json, allowTestChannel = true) }
+            .onSuccess(candidates::add)
+    }
+
+    // Also discover normal, non-prerelease GitHub Releases. Previously the app only
+    // checked latest-test.json, so tagged releases were invisible inside the app.
+    runCatching {
+        val release = fetchJson("https://api.github.com/repos/murmusuvash2-wq/vyoma/releases/latest")
+        val assets = release.optJSONArray("assets") ?: error("Latest GitHub Release has no assets")
+        val metadataUrl = (0 until assets.length())
+            .mapNotNull { assets.optJSONObject(it) }
+            .firstOrNull { it.optString("name") == "release-info.json" }
+            ?.optString("browser_download_url")
+            ?.takeIf { it.isNotBlank() }
+            ?: error("Latest stable release has no release-info.json yet")
+        val metadata = fetchJson(metadataUrl)
+        parseBuildMetadata(metadata, allowTestChannel = false)
+    }.onSuccess(candidates::add)
+
+    return candidates.maxByOrNull { it.versionCode }
+        ?: error("Could not find a valid latest-test or stable release. Check GitHub Releases and release metadata.")
+}
+
+private fun parseBuildMetadata(json: JSONObject, allowTestChannel: Boolean): LatestVyomaBuild {
+    val apkUrl = json.getString("apkUrl")
+    val allowedPrefix = if (allowTestChannel) {
+        "https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/"
+    } else {
+        "https://github.com/murmusuvash2-wq/vyoma/releases/download/"
+    }
+    require(apkUrl.startsWith(allowedPrefix)) { "Unexpected APK download address" }
+    if (!allowTestChannel) {
+        require(!apkUrl.startsWith("https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/")) {
+            "Stable release metadata cannot point at the test channel"
+        }
+    }
+    val sha = (json.optString("sha256Apk").takeIf { it.isNotBlank() } ?: json.optString("sha256")).lowercase()
+    require(sha.matches(Regex("[a-f0-9]{64}"))) { "Invalid APK checksum metadata" }
+    return LatestVyomaBuild(
+        versionName = json.getString("versionName"),
+        versionCode = json.getLong("versionCode"),
+        apkUrl = apkUrl,
+        sha256 = sha,
+        commit = json.optString("commit", json.optString("sourceCommit"))
+    )
+}
+
+private fun fetchJson(url: String): JSONObject {
+    val connection = (URL("$url${if (url.contains("?")) "&" else "?"}check=${System.currentTimeMillis()}").openConnection() as HttpURLConnection).apply {
         connectTimeout = 15000
         readTimeout = 15000
         requestMethod = "GET"
@@ -173,21 +253,8 @@ private fun fetchLatestBuild(): LatestVyomaBuild {
     }
     try {
         val status = connection.responseCode
-        if (status !in 200..299) error("Release server returned HTTP $status")
-        val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-        val apkUrl = json.getString("apkUrl")
-        require(apkUrl.startsWith("https://github.com/murmusuvash2-wq/vyoma/releases/download/latest-test/")) {
-            "Unexpected APK download address"
-        }
-        val sha = json.getString("sha256").lowercase()
-        require(sha.matches(Regex("[a-f0-9]{64}"))) { "Invalid APK checksum metadata" }
-        return LatestVyomaBuild(
-            versionName = json.getString("versionName"),
-            versionCode = json.getLong("versionCode"),
-            apkUrl = apkUrl,
-            sha256 = sha,
-            commit = json.getString("commit")
-        )
+        if (status !in 200..299) error("Update source returned HTTP $status")
+        return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
     } finally {
         connection.disconnect()
     }
