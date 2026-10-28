@@ -107,9 +107,64 @@ internal object AiConnectionStore {
         cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
         return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
+
 }
 
 internal object OpenAiCompatibleClient {
+    private const val MAX_DISCOVERY_RESPONSE_CHARS = 1024 * 1024
+    suspend fun discoverModels(
+        context: Context,
+        endpoint: String,
+        apiKeyOverride: String? = null
+    ): List<String> = withContext(Dispatchers.IO) {
+        require(AiConnectionStore.isValidEndpoint(endpoint)) {
+            "Use an HTTPS endpoint for model discovery."
+        }
+        val apiKey = apiKeyOverride?.trim()?.takeIf { it.isNotBlank() }
+            ?: AiConnectionStore.readKey(context)
+            ?: throw IllegalStateException("Enter or save your API key first.")
+        val modelsEndpoint = AiModelEndpointResolver.resolve(endpoint)
+        val connection = (URL(modelsEndpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 12_000
+            readTimeout = 20_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Authorization", "Bearer $apiKey")
+        }
+        try {
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                buildString {
+                    val buffer = CharArray(8 * 1024)
+                    while (length < MAX_DISCOVERY_RESPONSE_CHARS) {
+                        val count = reader.read(buffer, 0, minOf(buffer.size, MAX_DISCOVERY_RESPONSE_CHARS - length))
+                        if (count <= 0) break
+                        append(buffer, 0, count)
+                    }
+                }
+            }.orEmpty()
+            if (status !in 200..299) {
+                throw IllegalStateException(
+                    when (status) {
+                        401, 403 -> "Provider rejected the API key or permissions (HTTP $status)."
+                        404 -> "Model-list endpoint was not found. Enter the provider's chat-completions endpoint or set the model manually."
+                        429 -> "Provider rate limit reached. Wait a moment and try again."
+                        in 500..599 -> "Provider is temporarily unavailable (HTTP $status)."
+                        else -> "Model discovery failed (HTTP $status)."
+                    }
+                )
+            }
+            AiModelResponseParser.parse(body).also { models ->
+                if (models.isEmpty()) {
+                    throw IllegalStateException("Provider responded, but no supported model IDs were found. You can enter a model manually.")
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     suspend fun sendMessage(
         context: Context,
         endpoint: String,

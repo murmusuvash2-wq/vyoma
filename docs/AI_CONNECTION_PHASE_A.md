@@ -28,3 +28,13 @@
 7. Verify no API key appears in source, logs, screenshots, or GitHub commits.
 
 A successful compile alone does not prove provider connectivity. Record the actual device/provider result separately.
+
+
+## Phase B — Provider architecture and model discovery (in progress)
+- Added an explicit protocol/preset model for OpenAI-compatible and custom OpenAI-compatible endpoints.
+- Added a model-list endpoint resolver for common chat-completions endpoint shapes.
+- Added bounded model-list response reading and parsing for `data[].id` and `models[].name/id`.
+- Added a Settings action to discover models and choose a returned model ID.
+- Discovery is optional: unsupported providers can continue using a manually entered model.
+- This phase still needs automated tests, Android CI, and real-provider/device validation.
+- Native Anthropic/Gemini protocols, streaming, and backend proxy are not implemented by this change.
