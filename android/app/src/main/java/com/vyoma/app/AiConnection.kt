@@ -108,10 +108,10 @@ internal object AiConnectionStore {
         return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
-    private const val MAX_DISCOVERY_RESPONSE_CHARS = 1024 * 1024
 }
 
 internal object OpenAiCompatibleClient {
+    private const val MAX_DISCOVERY_RESPONSE_CHARS = 1024 * 1024
     suspend fun discoverModels(
         context: Context,
         endpoint: String,
