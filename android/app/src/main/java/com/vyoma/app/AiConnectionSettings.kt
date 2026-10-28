@@ -1,6 +1,7 @@
 package com.vyoma.app
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +16,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -101,7 +101,7 @@ internal fun AiConnectionSettings(modifier: Modifier = Modifier) {
                         },
                         enabled = !busy && (hasSavedKey || apiKey.isNotBlank()) && AiConnectionStore.isValidEndpoint(endpoint)
                     ) { Text("Discover models") }
-                    androidx.compose.material3.Box {
+                    Box {
                         OutlinedButton(
                             onClick = { modelMenuExpanded = true },
                             enabled = discoveredModels.isNotEmpty() && !busy
