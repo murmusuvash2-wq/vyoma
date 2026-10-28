@@ -13,6 +13,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +47,8 @@ internal fun AiConnectionSettings(modifier: Modifier = Modifier) {
     var response by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var discoveredModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var modelMenuExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -71,6 +75,55 @@ internal fun AiConnectionSettings(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            error = null
+                            response = null
+                            busy = true
+                            scope.launch {
+                                try {
+                                    discoveredModels = OpenAiCompatibleClient.discoverModels(
+                                        context,
+                                        endpoint,
+                                        apiKey.takeIf { it.isNotBlank() }
+                                    )
+                                    if (discoveredModels.isNotEmpty()) {
+                                        modelMenuExpanded = true
+                                        response = "Found ${discoveredModels.size} model(s). Select one to use."
+                                    }
+                                } catch (t: Throwable) {
+                                    error = t.message ?: "Could not discover models."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        },
+                        enabled = !busy && (hasSavedKey || apiKey.isNotBlank()) && AiConnectionStore.isValidEndpoint(endpoint)
+                    ) { Text("Discover models") }
+                    androidx.compose.material3.Box {
+                        OutlinedButton(
+                            onClick = { modelMenuExpanded = true },
+                            enabled = discoveredModels.isNotEmpty() && !busy
+                        ) { Text("Choose model") }
+                        DropdownMenu(
+                            expanded = modelMenuExpanded,
+                            onDismissRequest = { modelMenuExpanded = false }
+                        ) {
+                            discoveredModels.forEach { modelId ->
+                                DropdownMenuItem(
+                                    text = { Text(modelId) },
+                                    onClick = {
+                                        model = modelId
+                                        modelMenuExpanded = false
+                                        error = null
+                                        response = null
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = apiKey,
                     onValueChange = { apiKey = it; error = null },
